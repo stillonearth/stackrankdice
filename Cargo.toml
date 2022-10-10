@@ -9,8 +9,7 @@ repository = "https://github.com/quentusrex/stackrankdice"
 
 [dependencies]
 bevy = { version = "0.8.1" }
-bevy_dice = { path = "../bevy_dice" }
-# bevy_hex = { path = "../bevy_hex" }
+bevy_dice = { git = "https://github.com/stillonearth/bevy_dice.git" }
 bevy_hex = { git = "https://github.com/stillonearth/bevy_hex.git" }
 rand = "0.8.5"
 array2d = "0.2.1"
