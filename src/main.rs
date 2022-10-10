@@ -165,7 +165,7 @@ fn generate_board() -> Board {
         }
     }
 
-    return board;
+    board
 }
 
 pub fn setup(
