@@ -2,24 +2,55 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use bevy_hex::{hex::HexCoord, *};
+use bevy_inspector_egui::WorldInspectorPlugin;
 use rand::seq::IteratorRandom;
 use rand::Rng;
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
-        .insert_resource(ClearColor(Color::WHITE))
-        .run();
-}
-
-const BOARD_SIZE: isize = 32;
+const BOARD_SIZE: isize = 16;
 const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Board {
     hexes: HashMap<(isize, isize), (usize, f32)>,
+    regions: Vec<Region>,
+}
+
+#[derive(Debug, Default)]
+struct Region {
+    hexes: Vec<(isize, isize)>,
+    owner: usize,
+    height: f32,
+}
+
+impl Region {
+    pub fn center_of_mass(&self) -> (f32, f32) {
+        let mut x = 0.0;
+        let mut y = 0.0;
+        for (hx, hy) in self.hexes.iter() {
+            x += *hx as f32;
+            y += *hy as f32;
+        }
+
+        (x / self.hexes.len() as f32, y / self.hexes.len() as f32)
+    }
+
+    pub fn center_hex(&self) -> HexCoord {
+        let center = self.center_of_mass();
+        let mut nearest_hex: (isize, isize) = (0, 0);
+        let mut min_distance = f32::MAX;
+        for point in self.hexes.iter() {
+            let distance =
+                ((center.0 - point.0 as f32).powi(2) + (center.1 - point.1 as f32).powi(2)).sqrt();
+
+            if distance < min_distance {
+                min_distance = distance;
+                nearest_hex = *point;
+            }
+        }
+
+        HexCoord::new(nearest_hex.0, nearest_hex.1)
+    }
 }
 
 fn generate_board() -> Board {
@@ -29,13 +60,11 @@ fn generate_board() -> Board {
         (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * NUMBER_OF_PLAYERS * 2) as isize;
 
     let mut rng = rand::thread_rng();
-    let mut board = Board {
-        hexes: HashMap::new(),
-    };
+    let mut board = Board::default();
 
     for patch in 0..NUMBER_OF_PATCHES {
         for player in 0..NUMBER_OF_PLAYERS {
-            let height = rng.gen_range(0.0..3.0);
+            let height = rng.gen_range(0.0..1.0);
 
             let mut is_starting_point_valid = false;
 
@@ -115,7 +144,7 @@ fn generate_board() -> Board {
 
                     // if could not generate a patch with a neightbours, start over
                     // except for the first patch
-                    if player == 0 && patch == 0 {
+                    if player == 0 && patch == 0 && patch_hexes.len() > 1 {
                         has_neighbours = true;
                     }
 
@@ -123,6 +152,11 @@ fn generate_board() -> Board {
                     // else, start over
                     if has_neighbours {
                         board.hexes = hex_snapshot;
+                        board.regions.push(Region {
+                            hexes: patch_hexes,
+                            owner: player,
+                            height,
+                        });
                         break;
                     }
                 }
@@ -134,6 +168,7 @@ fn generate_board() -> Board {
 }
 
 pub fn setup(
+    asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -142,21 +177,42 @@ pub fn setup(
     commands
         // camera
         .spawn_bundle(Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(3.0, 64., 0.0))
+            transform: Transform::from_translation(Vec3::new(40.0, 42., 0.0))
                 .looking_at(Vec3::default(), Vec3::Y),
             ..Default::default()
         });
 
     // Lightning
+    const HALF_SIZE: f32 = 10.0;
     commands.spawn_bundle(DirectionalLightBundle {
-        transform: Transform::from_translation(Vec3::new(0.0, 1000.0, 0.0)),
-        ..Default::default()
+        directional_light: DirectionalLight {
+            // Configure the projection to better fit the scene
+            shadow_projection: OrthographicProjection {
+                left: -HALF_SIZE,
+                right: HALF_SIZE,
+                bottom: -HALF_SIZE,
+                top: HALF_SIZE,
+                near: -10.0 * HALF_SIZE,
+                far: 10.0 * HALF_SIZE,
+                ..default()
+            },
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform {
+            translation: Vec3::new(0.0, 2.0, 0.0),
+            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
+            ..default()
+        },
+        ..default()
     });
 
     let colors = [Color::PURPLE, Color::CYAN];
     let mesh = meshes.add(generate_hex_mesh()).clone();
     let board = generate_board();
 
+    // Draw board
     for (coord, hex_data) in board.hexes.iter() {
         let color = colors[hex_data.0];
         let material = materials.add(color.into());
@@ -172,4 +228,29 @@ pub fn setup(
             ..Default::default()
         });
     }
+    // Place dice on areas
+    let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
+    for region in board.regions.iter() {
+        let center_hex = region.center_hex();
+
+        let pos = geometry::center(1.0, &center_hex, &[0., region.height, 0.]);
+
+        commands
+            .spawn_bundle(SceneBundle {
+                scene: dice_handle.clone(),
+                transform: Transform::from_xyz(pos[0], pos[1] + 0.383, pos[2])
+                    .with_scale(Vec3::splat(0.9)),
+                ..default()
+            })
+            .insert(Name::new("Dice"));
+    }
+}
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugin(WorldInspectorPlugin::new())
+        .add_startup_system(setup)
+        .insert_resource(ClearColor(Color::DARK_GREEN))
+        .run();
 }
