@@ -19,7 +19,7 @@ struct Board {
 #[derive(Debug, Default)]
 struct Region {
     hexes: Vec<(isize, isize)>,
-    owner: usize,
+    // owner: usize,
     height: f32,
 }
 
