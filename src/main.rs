@@ -1,10 +1,15 @@
 use std::collections::HashMap;
 
-use bevy::prelude::*;
-use bevy_hex::{hex::HexCoord, *};
-use bevy_inspector_egui::WorldInspectorPlugin;
 use rand::seq::IteratorRandom;
 use rand::Rng;
+
+use bevy::{
+    prelude::*,
+    render::{mesh::Indices, render_resource::PrimitiveTopology},
+};
+use bevy_hex::{hex::HexCoord, *};
+use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_mod_outline::*;
 
 const BOARD_SIZE: isize = 16;
 const NUMBER_OF_PLAYERS: usize = 2;
@@ -168,6 +173,58 @@ fn generate_board() -> Board {
     board
 }
 
+/// Generate a single hex mesh
+fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
+    let mut pts: Vec<[f32; 3]> = vec![];
+    let mut normals: Vec<[f32; 3]> = vec![];
+    let mut uvs: Vec<[f32; 2]> = vec![];
+    let mut indices = vec![];
+
+    for (hex_num, hex) in hexes.iter().enumerate() {
+        let c = hex::HexCoord::new(0, 0);
+        geometry::bevel_hexagon_points(&mut pts, 1.0, 1.0, &c);
+        geometry::bevel_hexagon_normals(&mut normals);
+        geometry::bevel_hexagon_indices(&mut indices, 0 as u32);
+
+        let pos = geometry::center(1.0, &hex::HexCoord::new(hex.0, hex.1), &[0., 0.0, 0.]);
+
+        for _ in 0..pts.len() {
+            uvs.push([0.0, 0.0]);
+        }
+
+        for p in pts.len() - 22..pts.len() {
+            pts[p][0] += pos[0];
+            pts[p][1] += pos[1];
+            pts[p][2] += pos[2];
+        }
+
+        for p in normals.len() - 22..normals.len() {
+            normals[p][0] += pos[0];
+            normals[p][1] += pos[1];
+            normals[p][2] += pos[2];
+        }
+
+        for p in uvs.len() - 22..uvs.len() {
+            uvs[p][0] += pos[0];
+            uvs[p][1] += pos[1];
+        }
+        println!("uvs: {:?}", uvs);
+        println!("normals: {:?}", normals);
+        println!("pts: {:?}", pts);
+
+        break;
+    }
+
+    println!("indices: {:?}", indices);
+
+    let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+    mesh.set_indices(Some(Indices::U32(indices)));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, pts);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh
+}
+
 pub fn setup(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
@@ -210,31 +267,37 @@ pub fn setup(
     });
 
     let colors = [Color::PURPLE, Color::CYAN];
-    let mesh = meshes.add(generate_hex_mesh()).clone();
     let board = generate_board();
 
     // Draw board
-    for (coord, hex_data) in board.hexes.iter() {
-        let color = colors[hex_data.0];
+    for region in board.regions.iter() {
+        let color = colors[region.owner as usize];
         let material = materials.add(color.into());
-        let pos = geometry::center(
-            1.0,
-            &hex::HexCoord::new(coord.0, coord.1),
-            &[0., hex_data.1, 0.],
-        );
-        commands.spawn_bundle(PbrBundle {
-            mesh: mesh.clone(),
-            material: material.clone(),
-            transform: Transform::from_translation(Vec3::new(pos[0], pos[1], pos[2])),
-            ..Default::default()
-        });
+
+        let mut mesh = generate_hex_region_mesh(region.hexes.clone());
+        mesh.generate_outline_normals().unwrap();
+        let mesh = meshes.add(mesh);
+
+        commands
+            .spawn_bundle(PbrBundle {
+                mesh: mesh.clone(),
+                material: material.clone(),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                ..Default::default()
+            })
+            .insert(Name::new("Hex"));
+
+        break;
     }
+
+    return;
+
     // Place dice on areas
     let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
     for region in board.regions.iter() {
         let center_hex = region.center_hex();
 
-        let pos = geometry::center(1.0, &center_hex, &[0., region.height, 0.]);
+        let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
 
         commands
             .spawn_bundle(SceneBundle {
@@ -251,6 +314,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
+        .add_plugin(OutlinePlugin)
         .add_startup_system(setup)
         .insert_resource(ClearColor(Color::DARK_GREEN))
         .run();

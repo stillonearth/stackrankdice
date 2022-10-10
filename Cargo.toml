@@ -9,11 +9,11 @@ repository = "https://github.com/quentusrex/stackrankdice"
 
 [dependencies]
 bevy = { version = "0.8.1" }
-bevy_dice = { git = "https://github.com/stillonearth/bevy_dice.git" }
-bevy_hex = { git = "https://github.com/stillonearth/bevy_hex.git" }
+bevy_hex = { git = "https://github.com/stillonearth/bevy_hex.git", rev = "9871d9048d" }
 rand = "0.8.5"
 array2d = "0.2.1"
 bevy-inspector-egui = { version = "0.13.0" }
+bevy_mod_outline = "0.2"
 
 [profile.dev]
 opt-level = 3
