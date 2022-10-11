@@ -173,34 +173,65 @@ fn generate_board() -> Board {
     board
 }
 
-pub fn flat_hexagon_indices(idx: &mut Vec<u32>, hex_num: u32) {
-    // Each of the six faces
-    for i in 0..=6 {
-        //           first-time     second-time
-        idx.push(9 * hex_num); // Center
-        idx.push(9 * hex_num + i + 1); // Point       East           North-east
-        idx.push(9 * hex_num + i + 2); // Next point  North-east     North-west
-    }
-}
-
 /// Generate a single hex mesh
 fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
     let mut pts: Vec<[f32; 3]> = vec![];
     let mut normals: Vec<[f32; 3]> = vec![];
     let mut uvs: Vec<[f32; 2]> = vec![];
-    let mut indices = vec![];
+    let mut indices: Vec<u32> = vec![];
 
     for (hex_num, hex) in hexes.iter().enumerate() {
         let c = hex::HexCoord::new(hex.0, hex.1);
+        let hex_num = hex_num as u32;
 
         // Populate the points for the top face, as a slightly scaled hexagon
         geometry::flat_hexagon_points(&mut pts, 1.0, &c);
-        geometry::flat_hexagon_normals(&mut normals);
-        flat_hexagon_indices(&mut indices, hex_num as u32);
-
         for _ in 0..9 {
+            normals.push([0., 1., 0.]);
+        }
+        for i in 0..=6 {
+            //           first-time     second-time
+            indices.push(18 * hex_num); // Center
+            indices.push(18 * hex_num + i + 1); // Point       East           North-east
+            indices.push(18 * hex_num + i + 2); // Next point  North-east     North-west
+        }
+
+        println!("pts: {:?}", pts.len());
+
+        // Duplicate points with an offset as a bottom face
+        for p in pts.len() - 9..pts.len() {
+            pts.push([pts[p][0], pts[p][1] - 0.005, pts[p][2]]);
+        }
+        for _ in 0..9 {
+            normals.push([0., -1., 0.]);
+        }
+
+        println!("pts: {:?}", pts.len());
+
+        // Populate indices for bottom
+        for i in 0..=6 {
+            //           first-time     second-time
+            indices.push(18 * hex_num + 9); // Center
+            indices.push(18 * hex_num + i + 1 + 9); // Point       East           North-east
+            indices.push(18 * hex_num + i + 2 + 9); // Next point  North-east     North-west
+        }
+
+        // Populate indices sides
+        for i in 0..=6 {
+            indices.push(18 * hex_num + i + 2);
+            indices.push(18 * hex_num + i + 1 + 9);
+            indices.push(18 * hex_num + i + 2 + 9);
+
+            indices.push(18 * hex_num + i + 2);
+            indices.push(18 * hex_num + i + 1);
+            indices.push(18 * hex_num + i + 1 + 9);
+        }
+
+        for _ in 0..18 {
             uvs.push([1.0, 1.0]);
         }
+
+        // break;
     }
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
@@ -265,7 +296,7 @@ pub fn setup(
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
 
-        let height = rng.gen_range(0.0..0.1);
+        let height = rng.gen_range(0.0..0.05);
 
         commands
             .spawn_bundle(PbrBundle {
@@ -278,11 +309,13 @@ pub fn setup(
             .insert_bundle(OutlineBundle {
                 outline: Outline {
                     visible: true,
-                    colour: Color::rgba(0.0, 0.0, 0.0, 3.0),
-                    width: 2.0,
+                    colour: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                    width: 1.0,
                 },
                 ..default()
             });
+
+        // return;
     }
 
     // Place dice on areas
@@ -305,6 +338,7 @@ pub fn setup(
 
 fn main() {
     App::new()
+        .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
