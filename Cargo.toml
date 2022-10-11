@@ -1,0 +1,19 @@
+[package]
+name = "stackrankdice"
+version = "0.0.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Dice Wars Game with Bevy"
+keywords = ["bevy", "tabletop", "dice"]
+repository = "https://github.com/quentusrex/stackrankdice"
+
+[dependencies]
+bevy = { version = "0.8.1" }
+bevy_dice = { git = "https://github.com/stillonearth/bevy_dice.git" }
+bevy_hex = { git = "https://github.com/stillonearth/bevy_hex.git" }
+rand = "0.8.5"
+array2d = "0.2.1"
+bevy-inspector-egui = { version = "0.13.0" }
+
+[profile.dev]
+opt-level = 3
