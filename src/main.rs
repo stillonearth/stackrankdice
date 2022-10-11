@@ -15,18 +15,17 @@ const BOARD_SIZE: isize = 16;
 const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct Board {
-    hexes: HashMap<(isize, isize), (usize, f32)>,
+    hexes: HashMap<(isize, isize), usize>,
     regions: Vec<Region>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct Region {
     hexes: Vec<(isize, isize)>,
     #[allow(dead_code)]
     owner: usize,
-    height: f32,
 }
 
 impl Region {
@@ -65,13 +64,11 @@ fn generate_board() -> Board {
     const PATCH_SIZE: isize =
         (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * NUMBER_OF_PLAYERS * 2) as isize;
 
-    let mut rng = rand::thread_rng();
     let mut board = Board::default();
+    let mut rng = rand::thread_rng();
 
     for patch in 0..NUMBER_OF_PATCHES {
         for player in 0..NUMBER_OF_PLAYERS {
-            let height = rng.gen_range(0.0..1.0);
-
             let mut is_starting_point_valid = false;
 
             while !is_starting_point_valid {
@@ -87,7 +84,7 @@ fn generate_board() -> Board {
                     let initial_coord = (q, r);
                     if board.hexes.get(&initial_coord).is_none() {
                         is_starting_point_valid = true;
-                        hex_snapshot.insert(initial_coord, (player, height));
+                        hex_snapshot.insert(initial_coord, player);
                     } else {
                         // try over
                         continue;
@@ -134,7 +131,11 @@ fn generate_board() -> Board {
                         }
                         let candidate = candidates.iter().choose(&mut rng).unwrap();
                         patch_hexes.push(*candidate);
-                        hex_snapshot.insert(*candidate, (player, height));
+                        hex_snapshot.insert(*candidate, player);
+                    }
+
+                    if patch_hexes.len() == 1 {
+                        break;
                     }
 
                     // check whether patch has any neighbors or start over
@@ -150,7 +151,7 @@ fn generate_board() -> Board {
 
                     // if could not generate a patch with a neightbours, start over
                     // except for the first patch
-                    if player == 0 && patch == 0 && patch_hexes.len() > 1 {
+                    if player == 0 && patch == 0 {
                         has_neighbours = true;
                     }
 
@@ -161,7 +162,6 @@ fn generate_board() -> Board {
                         board.regions.push(Region {
                             hexes: patch_hexes,
                             owner: player,
-                            height,
                         });
                         break;
                     }
@@ -173,6 +173,16 @@ fn generate_board() -> Board {
     board
 }
 
+pub fn flat_hexagon_indices(idx: &mut Vec<u32>, hex_num: u32) {
+    // Each of the six faces
+    for i in 0..=6 {
+        //           first-time     second-time
+        idx.push(9 * hex_num); // Center
+        idx.push(9 * hex_num + i + 1); // Point       East           North-east
+        idx.push(9 * hex_num + i + 2); // Next point  North-east     North-west
+    }
+}
+
 /// Generate a single hex mesh
 fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
     let mut pts: Vec<[f32; 3]> = vec![];
@@ -181,43 +191,19 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
     let mut indices = vec![];
 
     for (hex_num, hex) in hexes.iter().enumerate() {
-        let c = hex::HexCoord::new(0, 0);
-        geometry::bevel_hexagon_points(&mut pts, 1.0, 1.0, &c);
-        geometry::bevel_hexagon_normals(&mut normals);
-        geometry::bevel_hexagon_indices(&mut indices, 0 as u32);
+        let c = hex::HexCoord::new(hex.0, hex.1);
 
-        let pos = geometry::center(1.0, &hex::HexCoord::new(hex.0, hex.1), &[0., 0.0, 0.]);
+        // Populate the points for the top face, as a slightly scaled hexagon
+        geometry::flat_hexagon_points(&mut pts, 1.0, &c);
+        geometry::flat_hexagon_normals(&mut normals);
+        flat_hexagon_indices(&mut indices, hex_num as u32);
 
-        for _ in 0..pts.len() {
-            uvs.push([0.0, 0.0]);
+        for _ in 0..9 {
+            uvs.push([1.0, 1.0]);
         }
-
-        for p in pts.len() - 22..pts.len() {
-            pts[p][0] += pos[0];
-            pts[p][1] += pos[1];
-            pts[p][2] += pos[2];
-        }
-
-        for p in normals.len() - 22..normals.len() {
-            normals[p][0] += pos[0];
-            normals[p][1] += pos[1];
-            normals[p][2] += pos[2];
-        }
-
-        for p in uvs.len() - 22..uvs.len() {
-            uvs[p][0] += pos[0];
-            uvs[p][1] += pos[1];
-        }
-        println!("uvs: {:?}", uvs);
-        println!("normals: {:?}", normals);
-        println!("pts: {:?}", pts);
-
-        break;
     }
 
-    println!("indices: {:?}", indices);
-
-    let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
     mesh.set_indices(Some(Indices::U32(indices)));
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, pts);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
@@ -255,7 +241,7 @@ pub fn setup(
                 ..default()
             },
             illuminance: 10000.0,
-            shadows_enabled: true,
+            shadows_enabled: false,
             ..default()
         },
         transform: Transform {
@@ -270,6 +256,7 @@ pub fn setup(
     let board = generate_board();
 
     // Draw board
+    let mut rng = rand::thread_rng();
     for region in board.regions.iter() {
         let color = colors[region.owner as usize];
         let material = materials.add(color.into());
@@ -278,19 +265,25 @@ pub fn setup(
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
 
+        let height = rng.gen_range(0.0..0.1);
+
         commands
             .spawn_bundle(PbrBundle {
                 mesh: mesh.clone(),
                 material: material.clone(),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                transform: Transform::from_translation(Vec3::new(0.0, height, 0.0)),
                 ..Default::default()
             })
-            .insert(Name::new("Hex"));
-
-        break;
+            .insert(Name::new("Hex"))
+            .insert_bundle(OutlineBundle {
+                outline: Outline {
+                    visible: true,
+                    colour: Color::rgba(0.0, 0.0, 0.0, 3.0),
+                    width: 2.0,
+                },
+                ..default()
+            });
     }
-
-    return;
 
     // Place dice on areas
     let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
