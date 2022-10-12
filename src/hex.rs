@@ -58,7 +58,7 @@ impl HexCoord {
 
     /// The coordinate to the north
     pub fn north(&self) -> Self {
-        Self::new(self.q + 0, self.r - 1)
+        Self::new(self.q, self.r - 1)
     }
     /// The coordinate to the south
     pub fn south(&self) -> Self {
@@ -76,11 +76,11 @@ impl HexCoord {
 
     /// The coordinate to the northwest
     pub fn northwest(&self) -> Self {
-        Self::new(self.q - 1, self.r + 0)
+        Self::new(self.q - 1, self.r)
     }
     /// The coordinate to the southeast
     pub fn southeast(&self) -> Self {
-        Self::new(self.q + 1, self.r + 0)
+        Self::new(self.q + 1, self.r)
     }
 
     /// The coordinate in a specific direction
