@@ -98,6 +98,7 @@ impl HexCoord {
     }
 
     /// Yield the neighbor coordinates, starting from North and going clockwise
+    #[allow(clippy::needless_lifetimes)]
     pub fn neighbors<'a>(&'a self) -> impl Iterator<Item = HexCoord> + 'a {
         struct NeighborIter<'a> {
             c: &'a HexCoord,
