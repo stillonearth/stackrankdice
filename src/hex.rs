@@ -62,7 +62,7 @@ impl HexCoord {
     }
     /// The coordinate to the south
     pub fn south(&self) -> Self {
-        Self::new(self.q + 0, self.r + 1)
+        Self::new(self.q, self.r + 1)
     }
 
     /// The coordinate to the northeast
