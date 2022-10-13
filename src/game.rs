@@ -5,7 +5,7 @@ use rand::Rng;
 
 use crate::hex::HexCoord;
 
-const BOARD_SIZE: isize = 32;
+const BOARD_SIZE: isize = 20;
 const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
@@ -20,6 +20,7 @@ pub(crate) struct Region {
     pub(crate) hexes: Vec<(isize, isize)>,
     #[allow(dead_code)]
     pub(crate) owner: usize,
+    pub(crate) number_of_dice: usize,
 }
 
 impl Region {
@@ -156,6 +157,7 @@ pub(crate) fn generate_board() -> Board {
                         board.regions.push(Region {
                             hexes: patch_hexes,
                             owner: player,
+                            number_of_dice: rng.gen_range(1..7),
                         });
                         break;
                     }

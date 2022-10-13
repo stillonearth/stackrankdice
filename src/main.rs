@@ -6,7 +6,7 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
 };
-use bevy_inspector_egui::WorldInspectorPlugin;
+// use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 use bevy_mod_picking::*;
 
@@ -68,8 +68,6 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
         for _ in 0..18 {
             uvs.push([1.0, 1.0]);
         }
-
-        // break;
     }
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
@@ -90,7 +88,7 @@ pub fn setup(
     commands
         // camera
         .spawn_bundle(Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(50.0, 42., 0.0))
+            transform: Transform::from_translation(Vec3::new(50.0, 32., 0.0))
                 .looking_at(Vec3::default(), Vec3::Y),
             ..Default::default()
         })
@@ -160,17 +158,25 @@ pub fn setup(
     let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
     for region in board.regions.iter() {
         let center_hex = region.center_hex();
-
         let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
 
-        commands
-            .spawn_bundle(SceneBundle {
-                scene: dice_handle.clone(),
-                transform: Transform::from_xyz(pos[0], pos[1] + 0.383, pos[2])
-                    .with_scale(Vec3::splat(0.9)),
-                ..default()
-            })
-            .insert(Name::new("Dice"));
+        for i in 0..region.number_of_dice {
+            let mut y_pos = pos[1] + 0.383 + (i as f32) * (2.0 * 0.383);
+            let mut z_pos = pos[2];
+            if i > 3 {
+                y_pos = pos[1] + 0.383 + ((i - 4) as f32) * (2.0 * 0.383);
+                z_pos += 0.383 * 2.0;
+            }
+
+            commands
+                .spawn_bundle(SceneBundle {
+                    scene: dice_handle.clone(),
+                    transform: Transform::from_xyz(pos[0], y_pos, z_pos)
+                        .with_scale(Vec3::splat(0.9)),
+                    ..default()
+                })
+                .insert(Name::new("Dice"));
+        }
     }
 }
 
@@ -179,9 +185,9 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
         .add_plugins(DefaultPickingPlugins)
-        .add_plugin(WorldInspectorPlugin::new())
+        // .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_startup_system(setup)
-        .insert_resource(ClearColor(Color::DARK_GREEN))
+        .insert_resource(ClearColor(Color::WHITE))
         .run();
 }
