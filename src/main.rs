@@ -4,7 +4,7 @@ mod hex;
 
 use bevy::{
     prelude::*,
-    render::{mesh::Indices, render_resource::PrimitiveTopology},
+    render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
 // use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
@@ -88,6 +88,12 @@ pub fn setup(
     commands
         // camera
         .spawn_bundle(Camera3dBundle {
+            projection: OrthographicProjection {
+                scaling_mode: ScalingMode::FixedVertical(3.0),
+                scale: 10.0,
+                ..default()
+            }
+            .into(),
             transform: Transform::from_translation(Vec3::new(50.0, 32., 0.0))
                 .looking_at(Vec3::default(), Vec3::Y),
             ..Default::default()
@@ -109,7 +115,7 @@ pub fn setup(
                 ..default()
             },
             illuminance: 10000.0,
-            shadows_enabled: true,
+            shadows_enabled: false,
             ..default()
         },
         transform: Transform {
@@ -165,7 +171,11 @@ pub fn setup(
             let mut z_pos = pos[2];
             if i > 3 {
                 y_pos = pos[1] + 0.383 + ((i - 4) as f32) * (2.0 * 0.383);
-                z_pos += 0.383 * 2.0;
+                z_pos += 0.383 * 2.0 + 0.01;
+            }
+
+            if region.number_of_dice > 3 {
+                z_pos -= 0.383;
             }
 
             commands
@@ -175,6 +185,7 @@ pub fn setup(
                         .with_scale(Vec3::splat(0.9)),
                     ..default()
                 })
+                .insert(OutlineStencil {})
                 .insert(Name::new("Dice"));
         }
     }
