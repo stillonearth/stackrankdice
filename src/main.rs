@@ -40,7 +40,7 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
 
         // Duplicate points with an offset as a bottom face
         for p in pts.len() - 9..pts.len() {
-            pts.push([pts[p][0], pts[p][1] - 0.005, pts[p][2]]);
+            pts.push([pts[p][0], pts[p][1] - 0.01, pts[p][2]]);
         }
         for _ in 0..9 {
             normals.push([0., -1., 0.]);
@@ -130,7 +130,6 @@ pub fn setup(
     let board = game::generate_board();
 
     // Draw board
-    let mut rng = rand::thread_rng();
     for region in board.regions.iter() {
         let color = colors[region.owner as usize];
         let material = materials.add(color.into());
@@ -139,21 +138,19 @@ pub fn setup(
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
 
-        let height = rng.gen_range(0.0..0.05);
-
         commands
             .spawn_bundle(PbrBundle {
                 mesh: mesh.clone(),
                 material: material.clone(),
-                transform: Transform::from_translation(Vec3::new(0.0, height, 0.0)),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
                 ..Default::default()
             })
             .insert(Name::new("Hex"))
             .insert_bundle(OutlineBundle {
                 outline: Outline {
                     visible: true,
-                    colour: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                    width: 1.0,
+                    colour: Color::rgba(1.0, 1.0, 1.0, 0.95),
+                    width: 2.0,
                 },
                 ..default()
             })
@@ -161,7 +158,10 @@ pub fn setup(
     }
 
     // Place dice on areas
-    let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
+    // let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
+
+    let dice_handle = asset_server.load("models/dice/scene.gltf#Mesh0/Primitive0");
+    let dice_color = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
     for region in board.regions.iter() {
         let center_hex = region.center_hex();
         let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
@@ -179,10 +179,11 @@ pub fn setup(
             }
 
             commands
-                .spawn_bundle(SceneBundle {
-                    scene: dice_handle.clone(),
+                .spawn_bundle(PbrBundle {
+                    mesh: dice_handle.clone(),
+                    material: dice_color.clone(),
                     transform: Transform::from_xyz(pos[0], y_pos, z_pos)
-                        .with_scale(Vec3::splat(0.9)),
+                        .with_scale(Vec3::splat(0.4)),
                     ..default()
                 })
                 .insert(OutlineStencil {})
