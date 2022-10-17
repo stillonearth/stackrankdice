@@ -4,6 +4,7 @@ use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::hex::HexCoord;
+use crate::PLAYER_COLORS;
 
 const BOARD_SIZE: isize = 20;
 // const NUMBER_OF_PLAYERS: usize = 2;
@@ -157,13 +158,27 @@ pub(crate) fn generate_board(number_of_players: usize) -> Board {
                         board.regions.push(Region {
                             hexes: patch_hexes,
                             owner: player,
-                            number_of_dice: rng.gen_range(1..7),
+                            number_of_dice: 0,
                         });
                         break;
                     }
                 }
             }
         }
+    }
+
+    // allocate dice
+    let mut dice_budget: HashMap<usize, usize> = HashMap::new();
+    for p in 0..number_of_players {
+        dice_budget.insert(p, NUMBER_OF_PATCHES * 4);
+    }
+
+    for region in board.regions.iter_mut() {
+        region.number_of_dice = rng.gen_range(1..usize::min(4, dice_budget[&region.owner]));
+        dice_budget.insert(
+            region.owner,
+            dice_budget[&region.owner] - region.number_of_dice,
+        );
     }
 
     board

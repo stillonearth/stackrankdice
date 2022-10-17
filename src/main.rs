@@ -10,7 +10,7 @@ use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 use bevy_mod_picking::*;
 
-use game::Region;
+use game::{generate_board, Board, Region};
 use geometry::center;
 use rand::Rng;
 
@@ -96,12 +96,7 @@ const PLAYER_COLORS: [Color; 8] = [
     Color::OLIVE,
 ];
 
-pub fn setup(
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn setup(mut commands: Commands) {
     // Camera
     commands
         // camera
@@ -117,8 +112,16 @@ pub fn setup(
             ..Default::default()
         })
         .insert_bundle(PickingCameraBundle::default());
+}
 
-    let board = game::generate_board(2);
+fn draw_board(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    board: ResMut<Board>,
+) {
+    // let board = game::generate_board(2);
     let mut rng = rand::thread_rng();
 
     // Draw board
@@ -158,8 +161,6 @@ pub fn setup(
             })
             .insert_bundle(PickableBundle::default());
     }
-
-    // return;
 
     // Place dice on areas
     let dice_mesh_handle = asset_server.load("models/dice/scene.gltf#Mesh0/Primitive0");
@@ -230,7 +231,9 @@ fn main() {
         .add_plugins(DefaultPickingPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
-        .add_startup_system(setup)
+        .add_startup_system(setup.label("setup"))
+        .add_startup_system(draw_board.after("setup"))
         .insert_resource(ClearColor(Color::WHITE))
+        .insert_resource(generate_board(2))
         .run();
 }
