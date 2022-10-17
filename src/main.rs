@@ -85,6 +85,17 @@ fn generate_hex_region_mesh(region: &Region) -> Mesh {
     mesh
 }
 
+const PLAYER_COLORS: [Color; 8] = [
+    Color::PURPLE,
+    Color::CYAN,
+    Color::GREEN,
+    Color::YELLOW,
+    Color::RED,
+    Color::ORANGE,
+    Color::PINK,
+    Color::OLIVE,
+];
+
 pub fn setup(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
@@ -107,13 +118,12 @@ pub fn setup(
         })
         .insert_bundle(PickingCameraBundle::default());
 
-    let colors = [Color::PURPLE, Color::CYAN];
-    let board = game::generate_board();
+    let board = game::generate_board(2);
     let mut rng = rand::thread_rng();
 
     // Draw board
     for region in board.regions.iter() {
-        let color = colors[region.owner as usize];
+        let color = PLAYER_COLORS[region.owner as usize];
         let material = materials.add(StandardMaterial {
             base_color: color.into(),
             metallic: 0.0,

@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::hex::HexCoord;
 
 const BOARD_SIZE: isize = 20;
-const NUMBER_OF_PLAYERS: usize = 2;
+// const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
 #[derive(Default)]
@@ -53,17 +53,17 @@ impl Region {
     }
 }
 
-pub(crate) fn generate_board() -> Board {
+pub(crate) fn generate_board(number_of_players: usize) -> Board {
     const HALF_BOARD_SIZE: isize = BOARD_SIZE / 2 - 1;
     // Roughly half of the board occupied by patches (squads)
-    const PATCH_SIZE: isize =
-        (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * NUMBER_OF_PLAYERS * 2) as isize;
+    let patch_size: isize =
+        (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * number_of_players * 2) as isize;
 
     let mut board = Board::default();
     let mut rng = rand::thread_rng();
 
     for patch in 0..NUMBER_OF_PATCHES {
-        for player in 0..NUMBER_OF_PLAYERS {
+        for player in 0..number_of_players {
             let mut is_starting_point_valid = false;
 
             while !is_starting_point_valid {
@@ -72,11 +72,12 @@ pub(crate) fn generate_board() -> Board {
                 while !has_neighbours {
                     let mut hex_snapshot = board.hexes.clone();
 
-                    let q = rng.gen_range(-HALF_BOARD_SIZE..HALF_BOARD_SIZE);
-                    let r = rng.gen_range(-HALF_BOARD_SIZE..HALF_BOARD_SIZE);
-
                     // check if starting position is empty
-                    let initial_coord = (q, r);
+                    let initial_coord = (
+                        rng.gen_range(-HALF_BOARD_SIZE..HALF_BOARD_SIZE),
+                        rng.gen_range(-HALF_BOARD_SIZE..HALF_BOARD_SIZE),
+                    );
+
                     if board.hexes.get(&initial_coord).is_none() {
                         is_starting_point_valid = true;
                         hex_snapshot.insert(initial_coord, player);
@@ -88,9 +89,9 @@ pub(crate) fn generate_board() -> Board {
                     // expand until size limit is reached or no more space to grow
                     let mut patch_hexes: Vec<(isize, isize)> = vec![initial_coord];
 
-                    for _ in 0..PATCH_SIZE {
+                    for _ in 0..patch_size {
                         // find a bordering hex. use random iterating order to avoid bias
-                        let mut nightbour_hex: Option<HexCoord> = None;
+                        let mut neightbour_hex: Option<HexCoord> = None;
                         for coord in patch_hexes
                             .iter()
                             .choose_multiple(&mut rng, patch_hexes.iter().len())
@@ -98,29 +99,28 @@ pub(crate) fn generate_board() -> Board {
                             let hex = HexCoord::new(coord.0, coord.1);
                             // iterate over all neighbors and find a free one
                             for neighbor in hex.neighbors() {
-                                let neighbour_coord = (neighbor.q, neighbor.r);
-                                if hex_snapshot.get(&neighbour_coord).is_none() {
-                                    nightbour_hex = Some(hex.clone());
+                                if hex_snapshot.get(&(neighbor.q, neighbor.r)).is_none() {
+                                    neightbour_hex = Some(hex.clone());
                                     break;
                                 }
                             }
 
                             // continue expanding a border hex
-                            if nightbour_hex.is_some() {
+                            if neightbour_hex.is_some() {
                                 break;
                             }
                         }
 
                         // no more hex cells in this patch
-                        if nightbour_hex.is_none() {
+                        if neightbour_hex.is_none() {
                             break;
                         }
 
                         // add a new hex to the patch
                         let mut candidates: Vec<(isize, isize)> = vec![];
-                        for neighbor in nightbour_hex.unwrap().neighbors() {
-                            let neighbour_coord = (neighbor.q, neighbor.r);
-                            if board.hexes.get(&neighbour_coord).is_none() {
+                        for neighbour in neightbour_hex.unwrap().neighbors() {
+                            let neighbour_coord = (neighbour.q, neighbour.r);
+                            if hex_snapshot.get(&neighbour_coord).is_none() {
                                 candidates.push(neighbour_coord);
                             }
                         }
