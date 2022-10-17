@@ -6,17 +6,22 @@ use bevy::{
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
-// use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 use bevy_mod_picking::*;
 
+use game::Region;
+use geometry::center;
 use rand::Rng;
 
 use crate::geometry::flat_hexagon_points;
 use crate::hex::HexCoord;
 
 /// Generate a single hex mesh
-fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
+fn generate_hex_region_mesh(region: &Region) -> Mesh {
+    let hexes = region.hexes.clone();
+    let center = center(1.0, &region.center_hex(), &[0.0, 0.0, 0.0]);
+
     let mut pts: Vec<[f32; 3]> = vec![];
     let mut normals: Vec<[f32; 3]> = vec![];
     let mut uvs: Vec<[f32; 2]> = vec![];
@@ -32,15 +37,17 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
             normals.push([0., 1., 0.]);
         }
         for i in 0..=6 {
-            //           first-time     second-time
             indices.push(18 * hex_num); // Center
             indices.push(18 * hex_num + i + 1); // Point       East           North-east
             indices.push(18 * hex_num + i + 2); // Next point  North-east     North-west
         }
 
-        // Duplicate points with an offset as a bottom face
+        // Adjust location and duplicate points with an offset as a bottom face
         for p in pts.len() - 9..pts.len() {
-            pts.push([pts[p][0], pts[p][1] - 0.01, pts[p][2]]);
+            pts[p][0] -= center[0];
+            pts[p][1] -= center[1];
+            pts[p][2] -= center[2];
+            pts.push([pts[p][0], pts[p][1] - 0.0001, pts[p][2]]);
         }
         for _ in 0..9 {
             normals.push([0., -1., 0.]);
@@ -48,7 +55,6 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
 
         // Populate indices for bottom
         for i in 0..=6 {
-            //           first-time     second-time
             indices.push(18 * hex_num + 9); // Center
             indices.push(18 * hex_num + i + 1 + 9); // Point       East           North-east
             indices.push(18 * hex_num + i + 2 + 9); // Next point  North-east     North-west
@@ -65,6 +71,7 @@ fn generate_hex_region_mesh(hexes: Vec<(isize, isize)>) -> Mesh {
             indices.push(18 * hex_num + i + 1 + 9);
         }
 
+        // Finally, UVs
         for _ in 0..18 {
             uvs.push([1.0, 1.0]);
         }
@@ -128,21 +135,27 @@ pub fn setup(
 
     let colors = [Color::PURPLE, Color::CYAN];
     let board = game::generate_board();
+    let mut rng = rand::thread_rng();
 
     // Draw board
     for region in board.regions.iter() {
         let color = colors[region.owner as usize];
         let material = materials.add(color.into());
+        let center_coord = center(1.0, &region.center_hex(), &[0.0, 0.0, 0.0]);
 
-        let mut mesh = generate_hex_region_mesh(region.hexes.clone());
+        let mut mesh = generate_hex_region_mesh(region.clone());
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
-
+        let height: f32 = rng.gen_range(0.0..=0.0001);
         commands
             .spawn_bundle(PbrBundle {
                 mesh: mesh.clone(),
                 material: material.clone(),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                transform: Transform::from_translation(Vec3::new(
+                    center_coord[0],
+                    center_coord[1] + height,
+                    center_coord[2],
+                )),
                 ..Default::default()
             })
             .insert(Name::new("Hex"))
@@ -150,12 +163,14 @@ pub fn setup(
                 outline: Outline {
                     visible: true,
                     colour: Color::rgba(1.0, 1.0, 1.0, 0.95),
-                    width: 2.0,
+                    width: 1.0,
                 },
                 ..default()
             })
             .insert_bundle(PickableBundle::default());
     }
+
+    // return;
 
     // Place dice on areas
     // let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
@@ -197,7 +212,7 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
         .add_plugins(DefaultPickingPlugins)
-        // .add_plugin(WorldInspectorPlugin::new())
+        .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_startup_system(setup)
         .insert_resource(ClearColor(Color::WHITE))
