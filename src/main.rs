@@ -107,32 +107,6 @@ pub fn setup(
         })
         .insert_bundle(PickingCameraBundle::default());
 
-    // Lightning
-    const HALF_SIZE: f32 = 10.0;
-    commands.spawn_bundle(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            // Configure the projection to better fit the scene
-            shadow_projection: OrthographicProjection {
-                left: -HALF_SIZE,
-                right: HALF_SIZE,
-                bottom: -HALF_SIZE,
-                top: HALF_SIZE,
-                near: -10.0 * HALF_SIZE,
-                far: 10.0 * HALF_SIZE,
-                ..default()
-            },
-            illuminance: 10000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        transform: Transform {
-            translation: Vec3::new(0.0, 2.0, 0.0),
-            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
-            ..default()
-        },
-        ..default()
-    });
-
     let colors = [Color::PURPLE, Color::CYAN];
     let board = game::generate_board();
     let mut rng = rand::thread_rng();
@@ -140,7 +114,12 @@ pub fn setup(
     // Draw board
     for region in board.regions.iter() {
         let color = colors[region.owner as usize];
-        let material = materials.add(color.into());
+        let material = materials.add(StandardMaterial {
+            base_color: color.into(),
+            metallic: 0.0,
+            reflectance: 0.0,
+            ..default()
+        });
         let center_coord = center(1.0, &region.center_hex(), &[0.0, 0.0, 0.0]);
 
         let mut mesh = generate_hex_region_mesh(region.clone());
@@ -162,8 +141,8 @@ pub fn setup(
             .insert_bundle(OutlineBundle {
                 outline: Outline {
                     visible: true,
-                    colour: Color::rgba(1.0, 1.0, 1.0, 0.95),
-                    width: 1.0,
+                    colour: Color::rgba(0.0, 0.0, 0.0, 1.0),
+                    width: 0.5,
                 },
                 ..default()
             })
@@ -173,10 +152,26 @@ pub fn setup(
     // return;
 
     // Place dice on areas
-    // let dice_handle = asset_server.load("models/dice/scene.gltf#Scene0");
+    let dice_mesh_handle = asset_server.load("models/dice/scene.gltf#Mesh0/Primitive0");
+    let material_handle = materials.add(StandardMaterial {
+        base_color_texture: Some(
+            asset_server
+                .load("models/dice/textures/Dice_baseColor.png")
+                .clone(),
+        ),
+        normal_map_texture: Some(
+            asset_server
+                .load("models/dice/textures/Dice_normal.png")
+                .clone(),
+        ),
+        metallic_roughness_texture: Some(
+            asset_server
+                .load("models/dice/textures/Dice_metallicRoughness.png")
+                .clone(),
+        ),
+        ..default()
+    });
 
-    let dice_handle = asset_server.load("models/dice/scene.gltf#Mesh0/Primitive0");
-    let dice_color = materials.add(Color::rgb(0.8, 0.8, 0.8).into());
     for region in board.regions.iter() {
         let center_hex = region.center_hex();
         let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
@@ -195,8 +190,8 @@ pub fn setup(
 
             commands
                 .spawn_bundle(PbrBundle {
-                    mesh: dice_handle.clone(),
-                    material: dice_color.clone(),
+                    mesh: dice_mesh_handle.clone(),
+                    material: material_handle.clone(),
                     transform: Transform::from_xyz(pos[0], y_pos, z_pos)
                         .with_scale(Vec3::splat(0.4)),
                     ..default()
@@ -204,6 +199,17 @@ pub fn setup(
                 .insert(OutlineStencil {})
                 .insert(Name::new("Dice"));
         }
+
+        commands
+            .spawn_bundle(PointLightBundle {
+                transform: Transform::from_xyz(pos[0] + 2.0, 2.0, pos[2]),
+                point_light: PointLight {
+                    intensity: 100.0,
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(Name::new("RegionLight"));
     }
 }
 
