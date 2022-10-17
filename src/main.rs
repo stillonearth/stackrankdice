@@ -122,7 +122,7 @@ pub fn setup(
         });
         let center_coord = center(1.0, &region.center_hex(), &[0.0, 0.0, 0.0]);
 
-        let mut mesh = generate_hex_region_mesh(region.clone());
+        let mut mesh = generate_hex_region_mesh(region);
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
         let height: f32 = rng.gen_range(0.0..=0.0001);
