@@ -3,12 +3,13 @@ mod geometry;
 mod hex;
 
 use bevy::{
+    app::PluginGroupBuilder,
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
-use bevy_mod_picking::*;
+use bevy_mod_picking::{highlight::ColorMaterialHighlight, *};
 
 use game::{generate_board, Board, Region};
 use geometry::center;
@@ -224,16 +225,111 @@ fn draw_board(
     }
 }
 
+// #[derive(Default)]
+// pub struct SelectedPiece {
+//     pub entity: Option<Entity>,
+// }
+
+// impl SelectedPiece {
+//     pub fn deselect(&mut self) {
+//         self.entity = None;
+//     }
+// }
+
+// fn highlight_region(
+//     selected_piece: Res<SelectedPiece>,
+//     square_materials: Res<RegionMaterials>,
+//     mut query: Query<(Entity, &game::Piece, &mut Handle<StandardMaterial>)>,
+// ) {
+//     for (entity, piece, mut material) in query.iter_mut() {
+//         if Some(entity) == selected_piece.entity {
+//             *material = square_materials.selected.clone();
+//         } else if piece.color == game::Color::White {
+//             *material = square_materials.white_color.clone();
+//         } else {
+//             *material = square_materials.blue_color.clone();
+//         }
+//     }
+// }
+
+// pub struct RegionMaterials {
+//     pub selected: Handle<StandardMaterial>,
+//     pub highlighted: Handle<StandardMaterial>,
+// }
+
+// impl FromWorld for RegionMaterials {
+//     fn from_world(world: &mut World) -> Self {
+//         let world = world.cell();
+//         let mut materials_asset = world
+//             .get_resource_mut::<Assets<StandardMaterial>>()
+//             .unwrap();
+
+//         RegionMaterials {
+//             selected: materials_asset.add(bevy::prelude::Color::rgb(0.9, 0.1, 0.1).into()),
+//             highlighted: materials_asset.add(bevy::prelude::Color::rgb(0., 0.1, 0.1).into()),
+//         }
+//     }
+// }
+
+#[derive(Default)]
+pub struct StakRankDiceMaterialHighlight;
+impl Highlightable for StakRankDiceMaterialHighlight {
+    type HighlightAsset = StandardMaterial;
+
+    fn highlight_defaults(
+        mut materials: Mut<Assets<Self::HighlightAsset>>,
+    ) -> DefaultHighlighting<Self> {
+        DefaultHighlighting {
+            hovered: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.35, 0.35, 0.35).into(),
+                metallic: 0.0,
+                reflectance: 0.0,
+                ..default()
+            }),
+            pressed: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.35, 0.75, 0.35).into(),
+                metallic: 0.0,
+                reflectance: 0.0,
+                ..default()
+            }),
+            selected: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.35, 0.35, 0.75).into(),
+                metallic: 0.0,
+                reflectance: 0.0,
+                ..default()
+            }),
+        }
+    }
+}
+
+pub struct StakRankDiceHighlightablePickingPlugins;
+impl PluginGroup for StakRankDiceHighlightablePickingPlugins {
+    fn build(&mut self, group: &mut PluginGroupBuilder) {
+        group.add(CustomHighlightPlugin(StakRankDiceMaterialHighlight));
+    }
+}
+
+pub struct StakRankDicePickingPlugins;
+
+impl PluginGroup for StakRankDicePickingPlugins {
+    fn build(&mut self, group: &mut PluginGroupBuilder) {
+        group.add(PickingPlugin);
+        group.add(InteractablePickingPlugin);
+        StakRankDiceHighlightablePickingPlugins.build(group);
+    }
+}
+
 fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
-        .add_plugins(DefaultPickingPlugins)
+        .add_plugins(StakRankDicePickingPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_startup_system(setup.label("setup"))
         .add_startup_system(draw_board.after("setup"))
         .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(generate_board(2))
+        // .init_resource::<RegionMaterials>()
         .run();
 }
