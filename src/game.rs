@@ -1,27 +1,27 @@
 use std::collections::HashMap;
 
+use bevy::prelude::Component;
 use rand::seq::IteratorRandom;
 use rand::Rng;
 
 use crate::hex::HexCoord;
-use crate::PLAYER_COLORS;
 
 const BOARD_SIZE: isize = 20;
 // const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
 #[derive(Default)]
-pub(crate) struct Board {
-    pub(crate) hexes: HashMap<(isize, isize), usize>,
-    pub(crate) regions: Vec<Region>,
+pub struct Board {
+    pub hexes: HashMap<(isize, isize), usize>,
+    pub regions: Vec<Region>,
 }
 
-#[derive(Default)]
-pub(crate) struct Region {
-    pub(crate) hexes: Vec<(isize, isize)>,
+#[derive(Default, Component, Clone)]
+pub struct Region {
+    pub hexes: Vec<(isize, isize)>,
     #[allow(dead_code)]
-    pub(crate) owner: usize,
-    pub(crate) number_of_dice: usize,
+    pub owner: usize,
+    pub number_of_dice: usize,
 }
 
 impl Region {
@@ -54,7 +54,7 @@ impl Region {
     }
 }
 
-pub(crate) fn generate_board(number_of_players: usize) -> Board {
+pub fn generate_board(number_of_players: usize) -> Board {
     const HALF_BOARD_SIZE: isize = BOARD_SIZE / 2 - 1;
     // Roughly half of the board occupied by patches (squads)
     let patch_size: isize =
@@ -182,4 +182,9 @@ pub(crate) fn generate_board(number_of_players: usize) -> Board {
     }
 
     board
+}
+
+pub struct GameState {
+    pub turn: usize,
+    pub number_of_players: usize,
 }

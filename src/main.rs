@@ -1,17 +1,17 @@
 mod game;
 mod geometry;
 mod hex;
+mod highlight;
 
 use bevy::{
-    app::PluginGroupBuilder,
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
-use bevy_mod_picking::{highlight::ColorMaterialHighlight, *};
 
-use game::{generate_board, Board, Region};
+use bevy_mod_picking::{PickableBundle, PickingCameraBundle};
+use game::{generate_board, Board, GameState, Region};
 use geometry::center;
 use rand::Rng;
 
@@ -97,7 +97,13 @@ const PLAYER_COLORS: [Color; 8] = [
     Color::OLIVE,
 ];
 
-fn setup(mut commands: Commands) {
+#[derive(Component)]
+struct TitleText;
+
+#[derive(Component)]
+struct CurrentTurnText;
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Camera
     commands
         // camera
@@ -113,6 +119,60 @@ fn setup(mut commands: Commands) {
             ..Default::default()
         })
         .insert_bundle(PickingCameraBundle::default());
+
+    // Title Text
+    commands
+        .spawn_bundle(
+            // Create a TextBundle that has a Text with a single section.
+            TextBundle::from_section(
+                // Accepts a `String` or any type that converts into a `String`, such as `&str`
+                "STACK RANK DICE",
+                TextStyle {
+                    font: asset_server.load("fonts/HEXAGON_.TTF"),
+                    font_size: 50.0,
+                    color: Color::BLACK,
+                },
+            ) // Set the alignment of the Text
+            .with_text_alignment(TextAlignment::TOP_CENTER)
+            // Set the style of the TextBundle itself.
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    top: Val::Px(5.0),
+                    right: Val::Px(15.0),
+                    ..default()
+                },
+                ..default()
+            }),
+        )
+        .insert(TitleText);
+
+    // Current Turn Text
+    commands
+        .spawn_bundle(
+            // Create a TextBundle that has a Text with a single section.
+            TextBundle::from_section(
+                // Accepts a `String` or any type that converts into a `String`, such as `&str`
+                "current turn",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 50.0,
+                    color: Color::BLACK,
+                },
+            ) // Set the alignment of the Text
+            .with_text_alignment(TextAlignment::TOP_CENTER)
+            // Set the style of the TextBundle itself.
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    bottom: Val::Px(5.0),
+                    left: Val::Px(15.0),
+                    ..default()
+                },
+                ..default()
+            }),
+        )
+        .insert(CurrentTurnText);
 }
 
 fn draw_board(
@@ -151,7 +211,6 @@ fn draw_board(
                 )),
                 ..Default::default()
             })
-            .insert(Name::new("Hex"))
             .insert_bundle(OutlineBundle {
                 outline: Outline {
                     visible: true,
@@ -160,7 +219,9 @@ fn draw_board(
                 },
                 ..default()
             })
-            .insert_bundle(PickableBundle::default());
+            .insert(region.clone())
+            .insert_bundle(PickableBundle::default())
+            .insert(Name::new("Hex"));
     }
 
     // Place dice on areas
@@ -225,6 +286,15 @@ fn draw_board(
     }
 }
 
+fn player_turn_text_update(
+    game_state: Res<GameState>,
+    mut query: Query<&mut Text, With<CurrentTurnText>>,
+) {
+    for mut text in &mut query {
+        text.sections[0].value = format!("Player {} turn", game_state.turn + 1);
+    }
+}
+
 // #[derive(Default)]
 // pub struct SelectedPiece {
 //     pub entity: Option<Entity>,
@@ -271,65 +341,24 @@ fn draw_board(
 //     }
 // }
 
-#[derive(Default)]
-pub struct StakRankDiceMaterialHighlight;
-impl Highlightable for StakRankDiceMaterialHighlight {
-    type HighlightAsset = StandardMaterial;
-
-    fn highlight_defaults(
-        mut materials: Mut<Assets<Self::HighlightAsset>>,
-    ) -> DefaultHighlighting<Self> {
-        DefaultHighlighting {
-            hovered: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.35, 0.35, 0.35).into(),
-                metallic: 0.0,
-                reflectance: 0.0,
-                ..default()
-            }),
-            pressed: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.35, 0.75, 0.35).into(),
-                metallic: 0.0,
-                reflectance: 0.0,
-                ..default()
-            }),
-            selected: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.35, 0.35, 0.75).into(),
-                metallic: 0.0,
-                reflectance: 0.0,
-                ..default()
-            }),
-        }
-    }
-}
-
-pub struct StakRankDiceHighlightablePickingPlugins;
-impl PluginGroup for StakRankDiceHighlightablePickingPlugins {
-    fn build(&mut self, group: &mut PluginGroupBuilder) {
-        group.add(CustomHighlightPlugin(StakRankDiceMaterialHighlight));
-    }
-}
-
-pub struct StakRankDicePickingPlugins;
-
-impl PluginGroup for StakRankDicePickingPlugins {
-    fn build(&mut self, group: &mut PluginGroupBuilder) {
-        group.add(PickingPlugin);
-        group.add(InteractablePickingPlugin);
-        StakRankDiceHighlightablePickingPlugins.build(group);
-    }
-}
-
 fn main() {
+    let number_of_players = 2;
+
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
-        .add_plugins(StakRankDicePickingPlugins)
+        .add_plugins(highlight::StackRankDicePickingPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_startup_system(setup.label("setup"))
         .add_startup_system(draw_board.after("setup"))
+        .add_system(player_turn_text_update)
         .insert_resource(ClearColor(Color::WHITE))
-        .insert_resource(generate_board(2))
+        .insert_resource(generate_board(number_of_players))
+        .insert_resource(GameState {
+            number_of_players,
+            turn: 0,
+        })
         // .init_resource::<RegionMaterials>()
         .run();
 }
