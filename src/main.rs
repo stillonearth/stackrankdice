@@ -227,20 +227,10 @@ fn draw_board(
     // Place dice on areas
     let dice_mesh_handle = asset_server.load("models/dice/scene.gltf#Mesh0/Primitive0");
     let material_handle = materials.add(StandardMaterial {
-        base_color_texture: Some(
-            asset_server
-                .load("models/dice/textures/Dice_baseColor.png")
-                ,
-        ),
-        normal_map_texture: Some(
-            asset_server
-                .load("models/dice/textures/Dice_normal.png")
-                ,
-        ),
+        base_color_texture: Some(asset_server.load("models/dice/textures/Dice_baseColor.png")),
+        normal_map_texture: Some(asset_server.load("models/dice/textures/Dice_normal.png")),
         metallic_roughness_texture: Some(
-            asset_server
-                .load("models/dice/textures/Dice_metallicRoughness.png")
-                ,
+            asset_server.load("models/dice/textures/Dice_metallicRoughness.png"),
         ),
         ..default()
     });
@@ -288,14 +278,8 @@ fn draw_board(
 
 fn filter_just_selected_event(mut event_reader: EventReader<PickingEvent>) -> Option<Entity> {
     for event in event_reader.iter() {
-        match event {
-            PickingEvent::Selection(selection_event) => match selection_event {
-                SelectionEvent::JustSelected(selection_event) => {
-                    return Some(*selection_event);
-                }
-                _ => {}
-            },
-            _ => {}
+        if let PickingEvent::Selection(SelectionEvent::JustSelected(selection_event)) = event {
+            return Some(*selection_event);
         }
     }
 
