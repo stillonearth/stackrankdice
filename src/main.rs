@@ -189,7 +189,7 @@ fn draw_board(
     for region in board.regions.iter() {
         let color = PLAYER_COLORS[region.owner as usize];
         let material = materials.add(StandardMaterial {
-            base_color: color.into(),
+            base_color: color,
             metallic: 0.0,
             reflectance: 0.0,
             ..default()
@@ -230,17 +230,17 @@ fn draw_board(
         base_color_texture: Some(
             asset_server
                 .load("models/dice/textures/Dice_baseColor.png")
-                .clone(),
+                ,
         ),
         normal_map_texture: Some(
             asset_server
                 .load("models/dice/textures/Dice_normal.png")
-                .clone(),
+                ,
         ),
         metallic_roughness_texture: Some(
             asset_server
                 .load("models/dice/textures/Dice_metallicRoughness.png")
-                .clone(),
+                ,
         ),
         ..default()
     });
@@ -299,7 +299,7 @@ fn filter_just_selected_event(mut event_reader: EventReader<PickingEvent>) -> Op
         }
     }
 
-    return None;
+    None
 }
 
 fn event_region_selected(

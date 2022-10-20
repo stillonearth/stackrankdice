@@ -48,25 +48,25 @@ impl StackRankDiceHighlightable for StackRankDiceMaterialHighlight {
     ) -> StackRankDiceDefaultHighlighting<Self> {
         StackRankDiceDefaultHighlighting {
             hovered: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.85, 0.0, 0.85).into(),
+                base_color: Color::rgb(0.85, 0.0, 0.85),
                 metallic: 0.0,
                 reflectance: 0.0,
                 ..default()
             }),
             pressed: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.85, 0.0, 0.85).into(),
+                base_color: Color::rgb(0.85, 0.0, 0.85),
                 metallic: 0.0,
                 reflectance: 0.0,
                 ..default()
             }),
             selected: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.95, 0.0, 0.85).into(),
+                base_color: Color::rgb(0.95, 0.0, 0.85),
                 metallic: 0.01,
                 reflectance: 0.0,
                 ..default()
             }),
             opponent: materials.add(StandardMaterial {
-                base_color: Color::rgba(0.95, 0.0, 0.0, 0.7).into(),
+                base_color: Color::rgba(0.95, 0.0, 0.0, 0.7),
                 metallic: 0.0,
                 reflectance: 0.0,
                 ..default()

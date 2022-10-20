@@ -70,7 +70,7 @@ impl Region {
             }
         }
 
-        return false;
+        false
     }
 }
 
