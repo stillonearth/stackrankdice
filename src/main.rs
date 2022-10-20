@@ -1,7 +1,7 @@
 mod game;
 mod geometry;
 mod hex;
-mod highlight;
+mod highlights;
 
 use bevy::{
     prelude::*,
@@ -10,7 +10,7 @@ use bevy::{
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 
-use bevy_mod_picking::{PickableBundle, PickingCameraBundle};
+use bevy_mod_picking::{PickableBundle, PickingCameraBundle, PickingEvent, SelectionEvent};
 use game::{generate_board, Board, GameState, Region};
 use geometry::center;
 use rand::Rng;
@@ -129,7 +129,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 "STACK RANK DICE",
                 TextStyle {
                     font: asset_server.load("fonts/HEXAGON_.TTF"),
-                    font_size: 50.0,
+                    font_size: 75.0,
                     color: Color::BLACK,
                 },
             ) // Set the alignment of the Text
@@ -286,60 +286,77 @@ fn draw_board(
     }
 }
 
-fn player_turn_text_update(
+fn filter_just_selected_event(mut event_reader: EventReader<PickingEvent>) -> Option<Entity> {
+    for event in event_reader.iter() {
+        match event {
+            PickingEvent::Selection(selection_event) => match selection_event {
+                SelectionEvent::JustSelected(selection_event) => {
+                    return Some(*selection_event);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    return None;
+}
+
+fn event_region_selected(
+    mut selected_region: ResMut<SelectedRegion>,
+    picking_events: EventReader<PickingEvent>,
+    regions: Query<(Entity, &Region)>,
     game_state: Res<GameState>,
-    mut query: Query<&mut Text, With<CurrentTurnText>>,
 ) {
-    for mut text in &mut query {
-        text.sections[0].value = format!("Player {} turn", game_state.turn + 1);
+    let selected_entity = filter_just_selected_event(picking_events);
+
+    if selected_entity.is_none() {
+        return;
+    }
+
+    let region = regions.get(selected_entity.unwrap()).unwrap().1;
+
+    if region.owner != game_state.turn {
+        // perform attack on a neightbour
+        // selected_region.deselect();
+    } else {
+        selected_region.select(selected_entity.unwrap(), region.clone());
     }
 }
 
-// #[derive(Default)]
-// pub struct SelectedPiece {
-//     pub entity: Option<Entity>,
-// }
+#[derive(Default)]
+pub struct SelectedRegion {
+    pub entity: Option<Entity>,
+    pub region: Option<Region>,
+}
 
-// impl SelectedPiece {
-//     pub fn deselect(&mut self) {
-//         self.entity = None;
-//     }
-// }
+impl SelectedRegion {
+    pub fn select(&mut self, entity: Entity, region: Region) {
+        self.entity = Some(entity);
+        self.region = Some(region);
+    }
 
-// fn highlight_region(
-//     selected_piece: Res<SelectedPiece>,
-//     square_materials: Res<RegionMaterials>,
-//     mut query: Query<(Entity, &game::Piece, &mut Handle<StandardMaterial>)>,
-// ) {
-//     for (entity, piece, mut material) in query.iter_mut() {
-//         if Some(entity) == selected_piece.entity {
-//             *material = square_materials.selected.clone();
-//         } else if piece.color == game::Color::White {
-//             *material = square_materials.white_color.clone();
-//         } else {
-//             *material = square_materials.blue_color.clone();
-//         }
-//     }
-// }
+    pub fn deselect(&mut self) {
+        self.entity = None;
+    }
+}
 
-// pub struct RegionMaterials {
-//     pub selected: Handle<StandardMaterial>,
-//     pub highlighted: Handle<StandardMaterial>,
-// }
+fn player_turn_text_update(
+    game_state: Res<GameState>,
+    selected_region: Res<SelectedRegion>,
+    mut query: Query<&mut Text, With<CurrentTurnText>>,
+) {
+    for mut text in &mut query {
+        let mut entity_id: String = String::from("---");
 
-// impl FromWorld for RegionMaterials {
-//     fn from_world(world: &mut World) -> Self {
-//         let world = world.cell();
-//         let mut materials_asset = world
-//             .get_resource_mut::<Assets<StandardMaterial>>()
-//             .unwrap();
+        if selected_region.entity.is_some() {
+            entity_id = format!("{}", selected_region.entity.unwrap().id());
+        }
 
-//         RegionMaterials {
-//             selected: materials_asset.add(bevy::prelude::Color::rgb(0.9, 0.1, 0.1).into()),
-//             highlighted: materials_asset.add(bevy::prelude::Color::rgb(0., 0.1, 0.1).into()),
-//         }
-//     }
-// }
+        text.sections[0].value = format!("PLAYER {} TURN {}", game_state.turn + 1, entity_id);
+        text.sections[0].style.color = PLAYER_COLORS[game_state.turn as usize];
+    }
+}
 
 fn main() {
     let number_of_players = 2;
@@ -347,18 +364,19 @@ fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
-        .add_plugins(highlight::StackRankDicePickingPlugins)
+        .add_plugins(highlights::StackRankDicePickingPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_startup_system(setup.label("setup"))
         .add_startup_system(draw_board.after("setup"))
         .add_system(player_turn_text_update)
+        .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
         .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(generate_board(number_of_players))
         .insert_resource(GameState {
             number_of_players,
             turn: 0,
         })
-        // .init_resource::<RegionMaterials>()
+        .init_resource::<SelectedRegion>()
         .run();
 }

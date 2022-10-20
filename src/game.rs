@@ -19,9 +19,9 @@ pub struct Board {
 #[derive(Default, Component, Clone)]
 pub struct Region {
     pub hexes: Vec<(isize, isize)>,
-    #[allow(dead_code)]
     pub owner: usize,
     pub number_of_dice: usize,
+    pub id: usize,
 }
 
 impl Region {
@@ -51,6 +51,26 @@ impl Region {
         }
 
         HexCoord::new(nearest_hex.0, nearest_hex.1)
+    }
+
+    pub fn is_opponent(&self, other: &Region) -> bool {
+        if self.owner == other.owner {
+            return false;
+        }
+
+        for hex in self.hexes.iter() {
+            let hex_coord = HexCoord::new(hex.0, hex.1);
+            for neighbour_coord in hex_coord.neighbors() {
+                if other
+                    .hexes
+                    .contains(&(neighbour_coord.q, neighbour_coord.r))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
 
@@ -159,6 +179,7 @@ pub fn generate_board(number_of_players: usize) -> Board {
                             hexes: patch_hexes,
                             owner: player,
                             number_of_dice: 0,
+                            id: board.regions.len(),
                         });
                         break;
                     }
