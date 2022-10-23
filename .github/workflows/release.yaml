@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - '*'
+      - "*"
 
 env:
   # update with the name of the main binary
@@ -11,9 +11,7 @@ env:
   add_binaries_to_github_release: true
   #itch_target: <itch.io-username>/<game-name>
 
-
 jobs:
-
   # Build for wasm
   release-wasm:
     runs-on: ubuntu-latest
@@ -76,7 +74,7 @@ jobs:
           override: true
       - name: install dependencies
         run: |
-          sudo apt-get update; sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+          sudo apt-get update; sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libxcb-render0-dev librust-alsa-sys-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
       - name: Build
         run: |
