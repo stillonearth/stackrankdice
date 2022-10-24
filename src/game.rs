@@ -206,6 +206,15 @@ pub fn generate_board(number_of_players: usize) -> Board {
 }
 
 pub struct GameState {
-    pub turn: usize,
+    pub turn_of_player: usize,
+    pub turn_counter: usize,
     pub number_of_players: usize,
+    pub game_log: Vec<GameLogEntry>,
+}
+
+pub struct GameLogEntry {
+    pub turn_number: usize,
+    pub turn_of_player: usize,
+    pub region_id: usize,
+    pub opponent_region_id: usize,
 }

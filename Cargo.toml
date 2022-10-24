@@ -9,6 +9,11 @@ repository = "https://github.com/quentusrex/stackrankdice"
 
 [dependencies]
 bevy = { version = "0.8.1" }
+bevy_rapier3d = { version = "0.17.0", features = [
+    "simd-stable",
+    "debug-render",
+] }
+bevy_dice = { path = "../bevy_dice" }
 rand = "0.8.5"
 array2d = "0.2.1"
 bevy-inspector-egui = { version = "0.13.0" }

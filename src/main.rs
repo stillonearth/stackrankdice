@@ -7,10 +7,12 @@ use bevy::{
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
+use bevy_dice::{DicePlugin, DicePluginSettings, DiceRollStartEvent};
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 
 use bevy_mod_picking::{PickableBundle, PickingCameraBundle, PickingEvent, SelectionEvent};
+use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
 use game::{generate_board, Board, GameState, Region};
 use geometry::center;
 use rand::Rng;
@@ -103,22 +105,34 @@ struct TitleText;
 #[derive(Component)]
 struct CurrentTurnText;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    dice_plugin_settings: Res<DicePluginSettings>,
+) {
     // Camera
     commands
         // camera
         .spawn_bundle(Camera3dBundle {
             projection: OrthographicProjection {
                 scaling_mode: ScalingMode::FixedVertical(3.0),
+
                 scale: 10.0,
                 ..default()
             }
             .into(),
+            camera: Camera {
+                priority: 1,
+                // target: RenderTarget::Image(image_handle.clone()),
+                ..default()
+            },
             transform: Transform::from_translation(Vec3::new(50.0, 32., 0.0))
                 .looking_at(Vec3::default(), Vec3::Y),
             ..Default::default()
         })
-        .insert_bundle(PickingCameraBundle::default());
+        .insert_bundle(PickingCameraBundle::default())
+        // .insert(UiCameraConfig { show_ui: false })
+        .insert(Name::new("Board Camera"));
 
     // Title Text
     commands
@@ -173,6 +187,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             }),
         )
         .insert(CurrentTurnText);
+
+    // Dice Roll camera
+    commands.spawn_bundle(Camera2dBundle {
+        camera: Camera {
+            // priority: 2,
+            ..default()
+        },
+        ..default()
+    });
+
+    commands
+        .spawn_bundle(ImageBundle {
+            image: UiImage(dice_plugin_settings.render_handle.clone().unwrap()),
+            style: Style {
+                size: Size::new(Val::Px(256.0), Val::Px(256.0)),
+                ..default()
+            },
+            ..default()
+        })
+        .insert(Name::new("Dice Roll View"));
 }
 
 fn draw_board(
@@ -199,7 +233,7 @@ fn draw_board(
         let mut mesh = generate_hex_region_mesh(region);
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
-        let height: f32 = rng.gen_range(0.0..=0.0001);
+        let height: f32 = 1.0 + rng.gen_range(0.0..=0.0001);
         commands
             .spawn_bundle(PbrBundle {
                 mesh: mesh.clone(),
@@ -240,7 +274,7 @@ fn draw_board(
         let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
 
         for i in 0..region.number_of_dice {
-            let mut y_pos = pos[1] + 0.383 + (i as f32) * (2.0 * 0.383);
+            let mut y_pos = 1.0 + pos[1] + 0.383 + (i as f32) * (2.0 * 0.383);
             let mut z_pos = pos[2];
             if i > 3 {
                 y_pos = pos[1] + 0.383 + ((i - 4) as f32) * (2.0 * 0.383);
@@ -285,12 +319,17 @@ fn filter_just_selected_event(mut event_reader: EventReader<PickingEvent>) -> Op
 
     None
 }
+pub struct RegionClashEvent {
+    region1: Region,
+    region2: Region,
+}
 
 fn event_region_selected(
     mut selected_region: ResMut<SelectedRegion>,
     picking_events: EventReader<PickingEvent>,
     regions: Query<(Entity, &Region)>,
     game_state: Res<GameState>,
+    mut event_writer: EventWriter<RegionClashEvent>,
 ) {
     let selected_entity = filter_just_selected_event(picking_events);
 
@@ -300,9 +339,17 @@ fn event_region_selected(
 
     let region = regions.get(selected_entity.unwrap()).unwrap().1;
 
-    if region.owner != game_state.turn {
-        // perform attack on a neightbour
-        // selected_region.deselect();
+    if region.owner != game_state.turn_of_player {
+        if selected_region.region.is_some() {
+            // Attack a neighbour
+            let event = RegionClashEvent {
+                region1: selected_region.region.clone().unwrap(),
+                region2: region.clone(),
+            };
+            event_writer.send(event);
+        }
+
+        selected_region.deselect();
     } else {
         selected_region.select(selected_entity.unwrap(), region.clone());
     }
@@ -331,14 +378,36 @@ fn player_turn_text_update(
     mut query: Query<&mut Text, With<CurrentTurnText>>,
 ) {
     for mut text in &mut query {
-        let mut entity_id: String = String::from("---");
+        let mut entity_id: String = String::new();
 
         if selected_region.entity.is_some() {
             entity_id = format!("{}", selected_region.entity.unwrap().id());
         }
 
-        text.sections[0].value = format!("PLAYER {} TURN {}", game_state.turn + 1, entity_id);
-        text.sections[0].style.color = PLAYER_COLORS[game_state.turn as usize];
+        text.sections[0].value = format!(
+            "PLAYER {} TURN {}",
+            game_state.turn_of_player + 1,
+            entity_id
+        );
+        text.sections[0].style.color = PLAYER_COLORS[game_state.turn_of_player as usize];
+    }
+}
+
+// Events
+
+fn region_clash_event(
+    mut region_clash_event_reader: EventReader<RegionClashEvent>,
+    mut ev_dice_started: EventWriter<DiceRollStartEvent>,
+) {
+    for event in region_clash_event_reader.iter() {
+        // Side 1 roll dice
+
+        println!(
+            "Region clash event: {:?} {:?}",
+            event.region1.id, event.region2.id
+        );
+
+        ev_dice_started.send(DiceRollStartEvent {});
     }
 }
 
@@ -351,16 +420,27 @@ fn main() {
         .add_plugins(highlights::StackRankDicePickingPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
-        .add_startup_system(setup.label("setup"))
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(DicePlugin)
+        .insert_resource(DicePluginSettings {
+            num_dice: 1,
+            render_size: (512, 512),
+            render_handle: None,
+        })
+        .add_startup_system(setup.after("dice_plugin_init").label("setup"))
         .add_startup_system(draw_board.after("setup"))
         .add_system(player_turn_text_update)
         .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
+        .add_system(region_clash_event)
         .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(generate_board(number_of_players))
         .insert_resource(GameState {
             number_of_players,
-            turn: 0,
+            turn_of_player: 0,
+            turn_counter: 0,
+            game_log: Vec::new(),
         })
         .init_resource::<SelectedRegion>()
+        .add_event::<RegionClashEvent>()
         .run();
 }
