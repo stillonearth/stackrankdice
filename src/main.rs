@@ -184,10 +184,7 @@ fn setup(
             })
             .insert(Name::new("Dice Roll View"))
             .insert(DiceRollUI)
-            .insert(Visibility {
-                is_visible: false,
-                ..default()
-            });
+            .insert(Visibility { is_visible: false });
 
         // Dice Throw Sum Text
         commands
@@ -213,10 +210,7 @@ fn setup(
             )
             .insert(Name::new("Dice Throw Sum Text"))
             .insert(DiceRollUI)
-            .insert(Visibility {
-                is_visible: false,
-                ..default()
-            });
+            .insert(Visibility { is_visible: false });
     }
 
     // Title Text
@@ -263,6 +257,7 @@ fn draw_board(
 
         let center_coord = center(1.0, &region.center_hex(), &[0.0, 0.0, 0.0]);
 
+        #[allow(clippy::search_is_some)]
         let is_region_playable = game_state
             .game_log
             .iter()
@@ -405,10 +400,7 @@ fn event_region_selected(
             let region_2 = region.clone();
             if region_1.is_opponent(&region_2) {
                 // Attack a neighbour
-                let event = RegionClashEventStart {
-                    region_1: region_1,
-                    region_2: region_2,
-                };
+                let event = RegionClashEventStart { region_1, region_2 };
                 event_writer.send(event);
             }
         }
@@ -524,7 +516,7 @@ fn event_region_clash(
             region_2: event.region_2.clone(),
             dice_1_sum: 0,
             dice_2_sum: 0,
-            turn_counter: turn_counter,
+            turn_counter,
         });
 
         dice_roll_started_writer.send(dice_roll_started);
@@ -648,7 +640,7 @@ fn event_region_clash_end(
         .count();
 
     if number_of_unblocked_regions == 0 {
-        game_state.turn_of_player = game_state.turn_of_player + 1;
+        game_state.turn_of_player += 1;
         if game_state.turn_of_player >= game_state.number_of_players {
             game_state.turn_of_player = 0;
         }
