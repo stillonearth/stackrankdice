@@ -7,7 +7,7 @@ use bevy::{
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
-use bevy_dice::{DicePlugin, DicePluginSettings, DiceRollStartEvent};
+use bevy_dice::{DicePlugin, DicePluginSettings, DiceRollResult, DiceRollStartEvent};
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_outline::*;
 
@@ -17,8 +17,8 @@ use game::{generate_board, Board, GameState, Region};
 use geometry::center;
 use rand::Rng;
 
-use crate::geometry::flat_hexagon_points;
 use crate::hex::HexCoord;
+use crate::{game::GameLogEntry, geometry::flat_hexagon_points};
 
 /// Generate a single hex mesh
 fn generate_hex_region_mesh(region: &Region) -> Mesh {
@@ -105,6 +105,9 @@ struct TitleText;
 #[derive(Component)]
 struct CurrentTurnText;
 
+#[derive(Component)]
+struct DiceRollUI;
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -134,48 +137,18 @@ fn setup(
         // .insert(UiCameraConfig { show_ui: false })
         .insert(Name::new("Board Camera"));
 
-    // Title Text
-    commands
-        .spawn_bundle(
-            // Create a TextBundle that has a Text with a single section.
-            TextBundle::from_section(
-                // Accepts a `String` or any type that converts into a `String`, such as `&str`
-                "STACK RANK DICE",
-                TextStyle {
-                    font: asset_server.load("fonts/HEXAGON_.TTF"),
-                    font_size: 75.0,
-                    color: Color::BLACK,
-                },
-            ) // Set the alignment of the Text
-            .with_text_alignment(TextAlignment::TOP_CENTER)
-            // Set the style of the TextBundle itself.
-            .with_style(Style {
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(5.0),
-                    right: Val::Px(15.0),
-                    ..default()
-                },
-                ..default()
-            }),
-        )
-        .insert(TitleText);
-
     // Current Turn Text
     commands
         .spawn_bundle(
-            // Create a TextBundle that has a Text with a single section.
             TextBundle::from_section(
-                // Accepts a `String` or any type that converts into a `String`, such as `&str`
                 "current turn",
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 50.0,
                     color: Color::BLACK,
                 },
-            ) // Set the alignment of the Text
+            )
             .with_text_alignment(TextAlignment::TOP_CENTER)
-            // Set the style of the TextBundle itself.
             .with_style(Style {
                 position_type: PositionType::Absolute,
                 position: UiRect {
@@ -197,16 +170,76 @@ fn setup(
         ..default()
     });
 
-    commands
-        .spawn_bundle(ImageBundle {
-            image: UiImage(dice_plugin_settings.render_handle.clone().unwrap()),
-            style: Style {
-                size: Size::new(Val::Px(256.0), Val::Px(256.0)),
+    for (i, dice_camera) in dice_plugin_settings.render_handles.iter().enumerate() {
+        commands
+            .spawn_bundle(ImageBundle {
+                image: UiImage(dice_camera.clone()),
+                style: Style {
+                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                    ..default()
+                },
                 ..default()
-            },
-            ..default()
-        })
-        .insert(Name::new("Dice Roll View"));
+            })
+            .insert(Name::new("Dice Roll View"))
+            .insert(DiceRollUI)
+            .insert(Visibility {
+                is_visible: false,
+                ..default()
+            });
+
+        // Dice Throw Sum Text
+        commands
+            .spawn_bundle(
+                TextBundle::from_section(
+                    "55",
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 150.0,
+                        color: Color::WHITE,
+                    },
+                )
+                .with_text_alignment(TextAlignment::TOP_CENTER)
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        bottom: Val::Percent(50.0),
+                        left: Val::Percent(25.0 + 50.0 * (i as f32)),
+                        ..default()
+                    },
+                    ..default()
+                }),
+            )
+            .insert(Name::new("Dice Throw Sum Text"))
+            .insert(DiceRollUI)
+            .insert(Visibility {
+                is_visible: false,
+                ..default()
+            });
+    }
+
+    // Title Text
+    commands
+        .spawn_bundle(
+            TextBundle::from_section(
+                "STACK RANK DICE",
+                TextStyle {
+                    font: asset_server.load("fonts/HEXAGON_.TTF"),
+                    font_size: 75.0,
+                    color: Color::BLACK,
+                },
+            )
+            .with_text_alignment(TextAlignment::TOP_CENTER)
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    top: Val::Px(5.0),
+                    right: Val::Px(15.0),
+                    ..default()
+                },
+                ..default()
+            }),
+        )
+        .insert(TitleText);
 }
 
 fn draw_board(
@@ -273,7 +306,7 @@ fn draw_board(
         let center_hex = region.center_hex();
         let pos = geometry::center(1.0, &center_hex, &[0., 0.0, 0.]);
 
-        for i in 0..region.number_of_dice {
+        for i in 0..region.num_dice {
             let mut y_pos = 1.0 + pos[1] + 0.383 + (i as f32) * (2.0 * 0.383);
             let mut z_pos = pos[2];
             if i > 3 {
@@ -281,7 +314,7 @@ fn draw_board(
                 z_pos += 0.383 * 2.0 + 0.01;
             }
 
-            if region.number_of_dice > 3 {
+            if region.num_dice > 3 {
                 z_pos -= 0.383;
             }
 
@@ -393,12 +426,35 @@ fn player_turn_text_update(
     }
 }
 
+fn dice_roll_result_text_ui(
+    game_state: Res<GameState>,
+    mut query: Query<&mut Text, With<DiceRollUI>>,
+) {
+    for (i, mut text) in &mut query.iter_mut().enumerate() {
+        let last_log_entry = game_state.game_log.last();
+        if last_log_entry.is_none() {
+            return;
+        }
+
+        let log_entry = last_log_entry.unwrap();
+        if i == 0 {
+            text.sections[0].value = format!("{}", log_entry.dice_1_sum);
+        } else {
+            text.sections[0].value = format!("{}", log_entry.dice_2_sum);
+        }
+    }
+}
+
 // Events
 
-fn region_clash_event(
+fn event_region_clash(
     mut region_clash_event_reader: EventReader<RegionClashEvent>,
-    mut ev_dice_started: EventWriter<DiceRollStartEvent>,
+    mut dice_roll_started_writer: EventWriter<DiceRollStartEvent>,
+    mut dice_roll_view_query: Query<(Entity, &mut Visibility, &DiceRollUI)>,
+    mut game_state: ResMut<GameState>,
 ) {
+    let turn_of_player = game_state.turn_of_player.clone();
+
     for event in region_clash_event_reader.iter() {
         // Side 1 roll dice
 
@@ -407,7 +463,38 @@ fn region_clash_event(
             event.region1.id, event.region2.id
         );
 
-        ev_dice_started.send(DiceRollStartEvent {});
+        let mut dice_roll_started = DiceRollStartEvent {
+            num_dice: Vec::new(),
+        };
+
+        dice_roll_started.num_dice.push(event.region1.num_dice);
+        dice_roll_started.num_dice.push(event.region2.num_dice);
+
+        for (_, mut v, _) in dice_roll_view_query.iter_mut() {
+            v.is_visible = true;
+        }
+
+        game_state.game_log.push(GameLogEntry {
+            turn_of_player: turn_of_player,
+            region_1: event.region1.clone(),
+            region_2: event.region2.clone(),
+            dice_1_sum: 0,
+            dice_2_sum: 0,
+        });
+
+        dice_roll_started_writer.send(dice_roll_started);
+    }
+}
+
+fn event_dice_roll_result(
+    mut dice_rolls: EventReader<DiceRollResult>,
+    mut game_state: ResMut<GameState>,
+) {
+    for event in dice_rolls.iter() {
+        let last_log_entry = game_state.game_log.last_mut().unwrap();
+
+        last_log_entry.dice_1_sum = event.values[0].iter().sum();
+        last_log_entry.dice_2_sum = event.values[1].iter().sum();
     }
 }
 
@@ -423,16 +510,18 @@ fn main() {
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(DicePlugin)
         .insert_resource(DicePluginSettings {
-            num_dice: 1,
-            render_size: (512, 512),
-            render_handle: None,
+            render_size: (640 * 2, 720 * 2),
+            number_of_fields: 2,
+            ..default()
         })
         .add_startup_system(setup.after("dice_plugin_init").label("setup"))
         .add_startup_system(draw_board.after("setup"))
         .add_system(player_turn_text_update)
         .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
-        .add_system(region_clash_event)
-        .insert_resource(ClearColor(Color::WHITE))
+        .add_system(event_region_clash)
+        .add_system(event_dice_roll_result)
+        .add_system(dice_roll_result_text_ui)
+        // .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(generate_board(number_of_players))
         .insert_resource(GameState {
             number_of_players,

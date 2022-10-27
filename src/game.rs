@@ -20,7 +20,7 @@ pub struct Board {
 pub struct Region {
     pub hexes: Vec<(isize, isize)>,
     pub owner: usize,
-    pub number_of_dice: usize,
+    pub num_dice: usize,
     pub id: usize,
 }
 
@@ -178,7 +178,7 @@ pub fn generate_board(number_of_players: usize) -> Board {
                         board.regions.push(Region {
                             hexes: patch_hexes,
                             owner: player,
-                            number_of_dice: 0,
+                            num_dice: 0,
                             id: board.regions.len(),
                         });
                         break;
@@ -195,11 +195,8 @@ pub fn generate_board(number_of_players: usize) -> Board {
     }
 
     for region in board.regions.iter_mut() {
-        region.number_of_dice = rng.gen_range(1..usize::min(4, dice_budget[&region.owner]));
-        dice_budget.insert(
-            region.owner,
-            dice_budget[&region.owner] - region.number_of_dice,
-        );
+        region.num_dice = rng.gen_range(1..usize::min(4, dice_budget[&region.owner]));
+        dice_budget.insert(region.owner, dice_budget[&region.owner] - region.num_dice);
     }
 
     board
@@ -213,8 +210,9 @@ pub struct GameState {
 }
 
 pub struct GameLogEntry {
-    pub turn_number: usize,
     pub turn_of_player: usize,
-    pub region_id: usize,
-    pub opponent_region_id: usize,
+    pub region_1: Region,
+    pub region_2: Region,
+    pub dice_1_sum: usize,
+    pub dice_2_sum: usize,
 }
