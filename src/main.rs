@@ -453,7 +453,7 @@ fn event_region_clash(
     mut dice_roll_view_query: Query<(Entity, &mut Visibility, &DiceRollUI)>,
     mut game_state: ResMut<GameState>,
 ) {
-    let turn_of_player = game_state.turn_of_player.clone();
+    let turn_of_player = game_state.turn_of_player;
 
     for event in region_clash_event_reader.iter() {
         // Side 1 roll dice
@@ -475,7 +475,7 @@ fn event_region_clash(
         }
 
         game_state.game_log.push(GameLogEntry {
-            turn_of_player: turn_of_player,
+            turn_of_player,
             region_1: event.region1.clone(),
             region_2: event.region2.clone(),
             dice_1_sum: 0,
