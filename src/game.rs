@@ -7,13 +7,29 @@ use rand::Rng;
 use crate::hex::HexCoord;
 
 const BOARD_SIZE: isize = 20;
-// const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Board {
     pub hexes: HashMap<(isize, isize), usize>,
     pub regions: Vec<Region>,
+}
+
+pub struct GameState {
+    pub board: Board,
+    pub turn_of_player: usize,
+    pub turn_counter: usize,
+    pub number_of_players: usize,
+    pub game_log: Vec<GameLogEntry>,
+}
+
+pub struct GameLogEntry {
+    pub turn_counter: usize,
+    pub turn_of_player: usize,
+    pub region_1: Region,
+    pub region_2: Region,
+    pub dice_1_sum: usize,
+    pub dice_2_sum: usize,
 }
 
 #[derive(Default, Component, Clone)]
@@ -200,19 +216,4 @@ pub fn generate_board(number_of_players: usize) -> Board {
     }
 
     board
-}
-
-pub struct GameState {
-    pub turn_of_player: usize,
-    pub turn_counter: usize,
-    pub number_of_players: usize,
-    pub game_log: Vec<GameLogEntry>,
-}
-
-pub struct GameLogEntry {
-    pub turn_of_player: usize,
-    pub region_1: Region,
-    pub region_2: Region,
-    pub dice_1_sum: usize,
-    pub dice_2_sum: usize,
 }
