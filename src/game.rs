@@ -7,20 +7,36 @@ use rand::Rng;
 use crate::hex::HexCoord;
 
 const BOARD_SIZE: isize = 20;
-// const NUMBER_OF_PLAYERS: usize = 2;
 const NUMBER_OF_PATCHES: usize = 16;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Board {
     pub hexes: HashMap<(isize, isize), usize>,
     pub regions: Vec<Region>,
+}
+
+pub struct GameState {
+    pub board: Board,
+    pub turn_of_player: usize,
+    pub turn_counter: usize,
+    pub number_of_players: usize,
+    pub game_log: Vec<GameLogEntry>,
+}
+
+pub struct GameLogEntry {
+    pub turn_counter: usize,
+    pub turn_of_player: usize,
+    pub region_1: Region,
+    pub region_2: Region,
+    pub dice_1_sum: usize,
+    pub dice_2_sum: usize,
 }
 
 #[derive(Default, Component, Clone)]
 pub struct Region {
     pub hexes: Vec<(isize, isize)>,
     pub owner: usize,
-    pub number_of_dice: usize,
+    pub num_dice: usize,
     pub id: usize,
 }
 
@@ -178,7 +194,7 @@ pub fn generate_board(number_of_players: usize) -> Board {
                         board.regions.push(Region {
                             hexes: patch_hexes,
                             owner: player,
-                            number_of_dice: 0,
+                            num_dice: 0,
                             id: board.regions.len(),
                         });
                         break;
@@ -195,17 +211,9 @@ pub fn generate_board(number_of_players: usize) -> Board {
     }
 
     for region in board.regions.iter_mut() {
-        region.number_of_dice = rng.gen_range(1..usize::min(4, dice_budget[&region.owner]));
-        dice_budget.insert(
-            region.owner,
-            dice_budget[&region.owner] - region.number_of_dice,
-        );
+        region.num_dice = rng.gen_range(1..usize::min(4, dice_budget[&region.owner]));
+        dice_budget.insert(region.owner, dice_budget[&region.owner] - region.num_dice);
     }
 
     board
-}
-
-pub struct GameState {
-    pub turn: usize,
-    pub number_of_players: usize,
 }

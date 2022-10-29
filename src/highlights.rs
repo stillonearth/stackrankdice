@@ -179,7 +179,7 @@ pub fn mesh_highlighting<T: 'static + StackRankDiceHighlightable + Send + Sync>(
             Interaction::Clicked => {
                 if selected_region.entity.is_some() && selected_region.entity.unwrap() == entity {
                     &global_default_highlight.pressed
-                } else if region.is_ok() && region.unwrap().1.owner != game_state.turn {
+                } else if region.is_ok() && region.unwrap().1.owner != game_state.turn_of_player {
                     &highlight.initial
                 } else if let Some(highlight_asset) = &highlight.pressed {
                     highlight_asset
@@ -198,7 +198,7 @@ pub fn mesh_highlighting<T: 'static + StackRankDiceHighlightable + Send + Sync>(
                         .is_opponent(selected_region.region.as_ref().unwrap())
                 {
                     &global_default_highlight.opponent
-                } else if region.is_ok() && region.unwrap().1.owner != game_state.turn {
+                } else if region.is_ok() && region.unwrap().1.owner != game_state.turn_of_player {
                     &highlight.initial
                 } else if let Some(highlight_asset) = &highlight.hovered {
                     highlight_asset
