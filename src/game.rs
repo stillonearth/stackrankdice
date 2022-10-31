@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::hex::HexCoord;
 
 const BOARD_SIZE: isize = 20;
-const NUMBER_OF_PATCHES: usize = 3;
+const NUMBER_OF_PATCHES: usize = 16;
 
 #[derive(Default, Clone)]
 pub struct Board {
