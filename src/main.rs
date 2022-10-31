@@ -111,6 +111,9 @@ struct CurrentTurnText;
 #[derive(Component)]
 struct DiceRollUI;
 
+#[derive(Component)]
+struct StackRankDiceUI;
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -161,7 +164,8 @@ fn setup(
                 ..default()
             }),
         )
-        .insert(CurrentTurnText);
+        .insert(CurrentTurnText)
+        .insert(StackRankDiceUI);
 
     // Dice Roll camera
     commands.spawn_bundle(Camera2dBundle {
@@ -184,7 +188,8 @@ fn setup(
             })
             .insert(Name::new("Dice Roll View"))
             .insert(DiceRollUI)
-            .insert(Visibility { is_visible: false });
+            .insert(Visibility { is_visible: false })
+            .insert(StackRankDiceUI);
 
         // Dice Throw Sum Text
         commands
@@ -210,6 +215,7 @@ fn setup(
             )
             .insert(Name::new("Dice Throw Sum Text"))
             .insert(DiceRollUI)
+            .insert(StackRankDiceUI)
             .insert(Visibility { is_visible: false });
     }
 
@@ -245,7 +251,7 @@ fn setup(
 }
 
 #[derive(Component)]
-struct StackRankDiceGameBoardElement;
+pub(crate) struct StackRankDiceGameBoardElement;
 
 fn draw_board(
     asset_server: Res<AssetServer>,
@@ -427,29 +433,19 @@ fn main() {
     let number_of_players = 2;
 
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        // Plugins
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy_kira_audio::prelude::AudioPlugin)
         .add_plugins(highlights::StackRankDicePickingPlugins)
-        // .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(DicePlugin)
+        // Resources
         .insert_resource(DicePluginSettings {
             render_size: (640 * 2, 720 * 2),
             number_of_fields: 2,
             ..default()
         })
-        .add_startup_system(setup.after("dice_plugin_init").label("setup"))
-        .add_startup_system(draw_board.after("setup"))
-        .add_system(player_turn_text_update)
-        .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
-        .add_system(event_region_clash)
-        .add_system(event_dice_roll_result)
-        .add_system(dice_roll_result_text_ui)
-        .add_system(event_dice_rolls_complete)
-        .add_system(event_region_clash_end)
-        .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(GameState {
             board: generate_board(number_of_players),
             number_of_players,
@@ -457,8 +453,26 @@ fn main() {
             turn_counter: 0,
             game_log: Vec::new(),
         })
+        .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<SelectedRegion>()
-        .add_event::<RegionClashEventStart>()
-        .add_event::<RegionClashEventEnd>()
+        // Startup Systems
+        .add_startup_system(setup.after("dice_plugin_init").label("setup"))
+        .add_startup_system(draw_board.after("setup"))
+        // UI Systems
+        .add_system(player_turn_text_update)
+        .add_system(dice_roll_result_text_ui)
+        // Control Handling
+        .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
+        // Event Handlers
+        .add_system(event_region_clash)
+        .add_system(event_dice_roll_result)
+        .add_system(event_dice_rolls_complete)
+        .add_system(event_region_clash_end)
+        .add_system(event_game_over)
+        // Events
+        .add_event::<EventRegionClashStart>()
+        .add_event::<EventRegionClashEnd>()
+        .add_event::<EventGameOver>()
+        // Ignite Engine
         .run();
 }
