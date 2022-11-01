@@ -1,10 +1,8 @@
-# StackrankDice
+# Stack Rank Dice
 
 This is re-implementation of [DiceWars](https://www.gamedesign.jp/games/dicewars/) game by [GAMEDESIGN.jp](https://www.gamedesign.jp/)
 
-THIS IS WORK IN PROGRESS
-
-![image](https://www.webpagescreenshot.info/image-url/HcuZ-mQaC)
+https://user-images.githubusercontent.com/97428129/199223618-212ead8f-30ae-443f-aa2f-4abb1f2397cf.mp4
 
 ## How to play
 
@@ -16,7 +14,7 @@ Conquered regions are added to the attacker's stack. The attacker can choose to 
 
 ## Implementation
 
-This is a re-implementation with [Bevy](https://bevyengine.org/) engine on Rust langaage. The original game was written in Flash.
+This is a re-implementation with [Bevy](https://bevyengine.org/) engine on Rust language.
 
 ## Acknowledgements
 
