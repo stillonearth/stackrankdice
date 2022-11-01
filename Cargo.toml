@@ -8,17 +8,36 @@ keywords = ["bevy", "tabletop", "dice"]
 repository = "https://github.com/quentusrex/stackrankdice"
 
 [dependencies]
-bevy = { version = "0.8.1" }
-bevy_rapier3d = { version = "0.17.0", features = [
+bevy_rapier3d = { version = "0.18.0", features = [
     "simd-stable",
     "debug-render",
 ] }
-bevy_dice = { version = "0.1.1" }
+bevy_dice = { version = "0.1.3" }
 rand = "0.8.5"
 array2d = "0.2.1"
 bevy-inspector-egui = { version = "0.13.0" }
 bevy_mod_outline = "0.2.3"
 bevy_mod_picking = { version = "0.9.0" }
+
+[dependencies.bevy]
+default-features = false
+version = "0.8.1"
+features = [
+    "render",
+    "animation",
+    "bevy_winit",
+    "bevy_gilrs",
+    "png",
+    "jpeg",
+    "hdr",
+    "filesystem_watcher",
+    "x11",
+]
+
+[dependencies.bevy_kira_audio]
+version = "0.12.0"
+default-features = false
+features = ["wav", "ogg"]
 
 [profile.dev]
 opt-level = 3

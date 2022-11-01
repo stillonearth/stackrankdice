@@ -1,26 +1,27 @@
+mod events;
 mod game;
 mod geometry;
 mod hex;
 mod highlights;
 
-use std::time::Duration;
+use rand::Rng;
 
 use bevy::{
     prelude::*,
     render::{camera::ScalingMode, mesh::Indices, render_resource::PrimitiveTopology},
 };
-use bevy_dice::{DicePlugin, DicePluginSettings, DiceRollResult, DiceRollStartEvent};
-// use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_dice::{DicePlugin, DicePluginSettings};
+use bevy_kira_audio::prelude::*;
 use bevy_mod_outline::*;
-
-use bevy_mod_picking::{PickableBundle, PickingCameraBundle, PickingEvent, SelectionEvent};
+use bevy_mod_picking::{PickableBundle, PickingCameraBundle};
 use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
+
+use events::*;
 use game::{generate_board, GameState, Region};
 use geometry::center;
-use rand::Rng;
 
+use crate::geometry::flat_hexagon_points;
 use crate::hex::HexCoord;
-use crate::{game::GameLogEntry, geometry::flat_hexagon_points};
 
 /// Generate a single hex mesh
 fn generate_hex_region_mesh(region: &Region) -> Mesh {
@@ -110,10 +111,14 @@ struct CurrentTurnText;
 #[derive(Component)]
 struct DiceRollUI;
 
+#[derive(Component)]
+struct StackRankDiceUI;
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     dice_plugin_settings: Res<DicePluginSettings>,
+    audio: Res<bevy_kira_audio::prelude::Audio>,
 ) {
     // Camera
     commands
@@ -121,14 +126,12 @@ fn setup(
         .spawn_bundle(Camera3dBundle {
             projection: OrthographicProjection {
                 scaling_mode: ScalingMode::FixedVertical(3.0),
-
                 scale: 10.0,
                 ..default()
             }
             .into(),
             camera: Camera {
                 priority: 1,
-                // target: RenderTarget::Image(image_handle.clone()),
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(50.0, 32., 0.0))
@@ -161,7 +164,8 @@ fn setup(
                 ..default()
             }),
         )
-        .insert(CurrentTurnText);
+        .insert(CurrentTurnText)
+        .insert(StackRankDiceUI);
 
     // Dice Roll camera
     commands.spawn_bundle(Camera2dBundle {
@@ -184,7 +188,8 @@ fn setup(
             })
             .insert(Name::new("Dice Roll View"))
             .insert(DiceRollUI)
-            .insert(Visibility { is_visible: false });
+            .insert(Visibility { is_visible: false })
+            .insert(StackRankDiceUI);
 
         // Dice Throw Sum Text
         commands
@@ -210,6 +215,7 @@ fn setup(
             )
             .insert(Name::new("Dice Throw Sum Text"))
             .insert(DiceRollUI)
+            .insert(StackRankDiceUI)
             .insert(Visibility { is_visible: false });
     }
 
@@ -236,10 +242,16 @@ fn setup(
             }),
         )
         .insert(TitleText);
+
+    // Music
+
+    audio
+        .play(asset_server.load("sounds/laidback.ogg"))
+        .looped();
 }
 
 #[derive(Component)]
-struct StackRankDiceGameBoardElement;
+pub(crate) struct StackRankDiceGameBoardElement;
 
 fn draw_board(
     asset_server: Res<AssetServer>,
@@ -358,56 +370,15 @@ fn draw_board(
 
         commands
             .spawn_bundle(PointLightBundle {
-                transform: Transform::from_xyz(pos[0] + 2.0, 2.0, pos[2]),
                 point_light: PointLight {
                     intensity: 100.0,
-                    ..default()
+                    ..Default::default()
                 },
-                ..default()
+                transform: Transform::from_xyz(pos[0] + 2.0, 2.0, pos[2]),
+                ..Default::default()
             })
             .insert(Name::new("RegionLight"))
             .insert(StackRankDiceGameBoardElement);
-    }
-}
-
-fn filter_just_selected_event(mut event_reader: EventReader<PickingEvent>) -> Option<Entity> {
-    for event in event_reader.iter() {
-        if let PickingEvent::Selection(SelectionEvent::JustSelected(selection_event)) = event {
-            return Some(*selection_event);
-        }
-    }
-
-    None
-}
-fn event_region_selected(
-    mut selected_region: ResMut<SelectedRegion>,
-    picking_events: EventReader<PickingEvent>,
-    regions: Query<(Entity, &Region)>,
-    game_state: Res<GameState>,
-    mut event_writer: EventWriter<RegionClashEventStart>,
-) {
-    let selected_entity = filter_just_selected_event(picking_events);
-
-    if selected_entity.is_none() {
-        return;
-    }
-
-    let region = regions.get(selected_entity.unwrap()).unwrap().1;
-
-    if region.owner != game_state.turn_of_player {
-        if selected_region.region.is_some() {
-            let region_1 = selected_region.region.clone().unwrap();
-            let region_2 = region.clone();
-            if region_1.is_opponent(&region_2) {
-                // Attack a neighbour
-                let event = RegionClashEventStart { region_1, region_2 };
-                event_writer.send(event);
-            }
-        }
-
-        selected_region.deselect();
-    } else {
-        selected_region.select(selected_entity.unwrap(), region.clone());
     }
 }
 
@@ -425,26 +396,16 @@ impl SelectedRegion {
 
     pub fn deselect(&mut self) {
         self.entity = None;
+        self.region = None;
     }
 }
 
 fn player_turn_text_update(
     game_state: Res<GameState>,
-    selected_region: Res<SelectedRegion>,
     mut query: Query<&mut Text, With<CurrentTurnText>>,
 ) {
     for mut text in &mut query {
-        let mut entity_id: String = String::new();
-
-        if selected_region.entity.is_some() {
-            entity_id = format!("{}", selected_region.entity.unwrap().id());
-        }
-
-        text.sections[0].value = format!(
-            "PLAYER {} TURN {}",
-            game_state.turn_of_player + 1,
-            entity_id
-        );
+        text.sections[0].value = format!("PLAYER {} TURN", game_state.turn_of_player + 1,);
         text.sections[0].style.color = PLAYER_COLORS[game_state.turn_of_player as usize];
     }
 }
@@ -468,215 +429,23 @@ fn dice_roll_result_text_ui(
     }
 }
 
-// Events
-
-pub struct RegionClashEventStart {
-    region_1: Region,
-    region_2: Region,
-}
-
-pub struct RegionClashEventEnd {
-    region1: Region,
-    region2: Region,
-    dice_1_sum: usize,
-    dice_2_sum: usize,
-}
-
-#[derive(Component)]
-struct DiceRollTimer {
-    timer: Timer,
-}
-
-fn event_region_clash(
-    mut commands: Commands,
-    mut region_clash_event_reader: EventReader<RegionClashEventStart>,
-    mut dice_roll_started_writer: EventWriter<DiceRollStartEvent>,
-    mut dice_roll_view_query: Query<(Entity, &mut Visibility, &DiceRollUI)>,
-    mut game_state: ResMut<GameState>,
-) {
-    let turn_of_player = game_state.turn_of_player;
-    let turn_counter = game_state.turn_counter;
-
-    for event in region_clash_event_reader.iter() {
-        // Side 1 roll dice
-        let mut dice_roll_started = DiceRollStartEvent {
-            num_dice: Vec::new(),
-        };
-
-        dice_roll_started.num_dice.push(event.region_1.num_dice);
-        dice_roll_started.num_dice.push(event.region_2.num_dice);
-
-        for (_, mut v, _) in dice_roll_view_query.iter_mut() {
-            v.is_visible = true;
-        }
-
-        game_state.game_log.push(GameLogEntry {
-            turn_of_player,
-            region_1: event.region_1.clone(),
-            region_2: event.region_2.clone(),
-            dice_1_sum: 0,
-            dice_2_sum: 0,
-            turn_counter,
-        });
-
-        dice_roll_started_writer.send(dice_roll_started);
-
-        commands.spawn().insert(DiceRollTimer {
-            timer: Timer::new(Duration::from_secs(3), false),
-        });
-    }
-}
-
-fn event_dice_roll_result(
-    mut dice_rolls: EventReader<DiceRollResult>,
-    mut game_state: ResMut<GameState>,
-) {
-    for event in dice_rolls.iter() {
-        let last_log_entry = game_state.game_log.last_mut().unwrap();
-
-        last_log_entry.dice_1_sum = event.values[0].iter().sum();
-        last_log_entry.dice_2_sum = event.values[1].iter().sum();
-    }
-}
-
-fn event_dice_rolls_complete(
-    mut commands: Commands,
-    mut dice_roll_timer_query: Query<(Entity, &mut DiceRollTimer)>,
-    mut dice_roll_ui_query: Query<(Entity, &mut Visibility, &mut DiceRollUI)>,
-    time: Res<Time>,
-    mut region_clash_end_event_writer: EventWriter<RegionClashEventEnd>,
-    mut game_state: ResMut<GameState>,
-) {
-    for (entity, mut fuse_timer) in dice_roll_timer_query.iter_mut() {
-        fuse_timer.timer.tick(time.delta());
-        if fuse_timer.timer.finished() {
-            commands.entity(entity).despawn();
-
-            for (_, mut v, _) in dice_roll_ui_query.iter_mut() {
-                v.is_visible = false;
-            }
-
-            let last_log_entry = game_state.game_log.last_mut().unwrap();
-
-            region_clash_end_event_writer.send(RegionClashEventEnd {
-                region1: last_log_entry.region_1.clone(),
-                region2: last_log_entry.region_2.clone(),
-                dice_1_sum: last_log_entry.dice_1_sum,
-                dice_2_sum: last_log_entry.dice_2_sum,
-            })
-        }
-    }
-}
-
-fn event_region_clash_end(
-    mut region_clash_end_event_reader: EventReader<RegionClashEventEnd>,
-    mut game_state: ResMut<GameState>,
-    mut game_elements_query: Query<(Entity, &StackRankDiceGameBoardElement)>,
-
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let mut rng = rand::thread_rng();
-    let mut redraw_board = false;
-
-    for e in region_clash_end_event_reader.iter() {
-        if e.dice_1_sum > e.dice_2_sum {
-            game_state.board.regions[e.region2.id].owner = e.region1.owner;
-            if e.region1.num_dice > 1 {
-                game_state.board.regions[e.region2.id].num_dice =
-                    rng.gen_range(1..e.region1.num_dice);
-                game_state.board.regions[e.region1.id].num_dice -=
-                    game_state.board.regions[e.region2.id].num_dice
-            }
-        } else {
-            game_state.board.regions[e.region1.id].owner = e.region2.owner;
-            if e.region2.num_dice > 1 {
-                game_state.board.regions[e.region1.id].num_dice =
-                    rng.gen_range(1..e.region2.num_dice);
-                game_state.board.regions[e.region2.id].num_dice -=
-                    game_state.board.regions[e.region1.id].num_dice
-            }
-        }
-
-        for (e, _) in game_elements_query.iter_mut() {
-            commands.entity(e).despawn_recursive();
-        }
-
-        redraw_board = true;
-    }
-
-    // check whether it's time to switch turn
-    let region_made_move_this_turn: Vec<Region> = game_state
-        .game_log
-        .iter()
-        .filter(|gl| {
-            gl.turn_counter == game_state.turn_counter
-                && gl.turn_of_player == game_state.turn_of_player
-        })
-        .map(|gl| gl.region_1.clone())
-        .collect();
-
-    let regions_able_to_move_this_turn = game_state.board.regions.iter().filter(|gl| {
-        gl.owner == game_state.turn_of_player
-            && region_made_move_this_turn
-                .iter()
-                .filter(|r| r.id == gl.id)
-                .count()
-                == 0
-    });
-
-    let number_of_unblocked_regions = regions_able_to_move_this_turn
-        .filter(|r1| {
-            game_state
-                .board
-                .regions
-                .iter()
-                .filter(|r2| r2.is_opponent(r1))
-                .count()
-                > 0
-        })
-        .count();
-
-    if number_of_unblocked_regions == 0 {
-        game_state.turn_of_player += 1;
-        if game_state.turn_of_player >= game_state.number_of_players {
-            game_state.turn_of_player = 0;
-        }
-        game_state.turn_counter += 1;
-    }
-
-    if redraw_board {
-        draw_board(asset_server, commands, meshes, materials, game_state);
-    }
-}
-
 fn main() {
     let number_of_players = 2;
 
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        // Plugins
         .add_plugins(DefaultPlugins)
+        .add_plugin(bevy_kira_audio::prelude::AudioPlugin)
         .add_plugins(highlights::StackRankDicePickingPlugins)
-        // .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(OutlinePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(DicePlugin)
+        // Resources
         .insert_resource(DicePluginSettings {
             render_size: (640 * 2, 720 * 2),
             number_of_fields: 2,
             ..default()
         })
-        .add_startup_system(setup.after("dice_plugin_init").label("setup"))
-        .add_startup_system(draw_board.after("setup"))
-        .add_system(player_turn_text_update)
-        .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
-        .add_system(event_region_clash)
-        .add_system(event_dice_roll_result)
-        .add_system(dice_roll_result_text_ui)
-        .add_system(event_dice_rolls_complete)
-        .add_system(event_region_clash_end)
         .insert_resource(GameState {
             board: generate_board(number_of_players),
             number_of_players,
@@ -684,8 +453,26 @@ fn main() {
             turn_counter: 0,
             game_log: Vec::new(),
         })
+        .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<SelectedRegion>()
-        .add_event::<RegionClashEventStart>()
-        .add_event::<RegionClashEventEnd>()
+        // Startup Systems
+        .add_startup_system(setup.after("dice_plugin_init").label("setup"))
+        .add_startup_system(draw_board.after("setup"))
+        // UI Systems
+        .add_system(player_turn_text_update)
+        .add_system(dice_roll_result_text_ui)
+        // Control Handling
+        .add_system_to_stage(CoreStage::PostUpdate, event_region_selected)
+        // Event Handlers
+        .add_system(event_region_clash)
+        .add_system(event_dice_roll_result)
+        .add_system(event_dice_rolls_complete)
+        .add_system(event_region_clash_end)
+        .add_system(event_game_over)
+        // Events
+        .add_event::<EventRegionClashStart>()
+        .add_event::<EventRegionClashEnd>()
+        .add_event::<EventGameOver>()
+        // Ignite Engine
         .run();
 }
