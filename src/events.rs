@@ -13,6 +13,7 @@ use crate::game::{GameState, Region};
 use crate::{
     draw_board, DiceRollUI, SelectedRegion, StackRankDiceGameBoardElement, StackRankDiceUI,
 };
+use crate::tiered_prng::PrngMapResource;
 
 pub(crate) struct EventRegionClashStart {
     region_1: Region,
@@ -172,6 +173,7 @@ pub(crate) fn event_region_clash_end(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     meshes: ResMut<Assets<Mesh>>,
+    mapPrng: ResMut<PrngMapResource>,
     materials: ResMut<Assets<StandardMaterial>>,
     mut selected_region: ResMut<SelectedRegion>,
     audio: Res<bevy_kira_audio::prelude::Audio>,
@@ -269,7 +271,7 @@ pub(crate) fn event_region_clash_end(
 
     if redraw_board {
         selected_region.deselect();
-        draw_board(asset_server, commands, meshes, materials, game_state);
+        draw_board(asset_server, commands, meshes, mapPrng, materials, game_state);
     }
 }
 
