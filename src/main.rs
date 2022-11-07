@@ -3,10 +3,10 @@ mod game;
 mod geometry;
 mod hex;
 mod highlights;
-mod tiered_prng;
+pub mod tiered_prng;
 
-use rand::Rng;
 use rand::rngs::OsRng;
+use rand::Rng;
 use rand::RngCore;
 
 use bevy::{
@@ -261,11 +261,11 @@ fn draw_board(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut mapPrng: ResMut<PrngMapResource>,
+    mut map_prng: ResMut<PrngMapResource>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     game_state: ResMut<GameState>,
 ) {
-//    let mut rng = rand::thread_rng();
+    //    let mut rng = rand::thread_rng();
     let board = game_state.board.clone();
 
     // Draw board
@@ -303,7 +303,7 @@ fn draw_board(
         let mut mesh = generate_hex_region_mesh(region);
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
-        let height: f32 = 1.0 + mapPrng.rng.gen_range(0.0..=0.0001);
+        let height: f32 = 1.0 + map_prng.rng.gen_range(0.0..=0.0001);
         let mut bundle_command = commands.spawn_bundle(PbrBundle {
             mesh: mesh.clone(),
             material: material.clone(),
@@ -438,32 +438,34 @@ fn main() {
     let number_of_players = 2;
 
     let mut world_seed: u64 = 0;
-    let mut env_seed: u64 = 0;
+    let env_seed: u64 = 0;
 
     // Get cli resource specs, else generate new random world and env seeds.
     // TODO: implement CliResource handling
 
     if world_seed == 0 || env_seed == 0 {
-	
-	let mut key = [0u8; 16];
-	OsRng.fill_bytes(&mut key);
+        let mut key = [0u8; 16];
+        OsRng.fill_bytes(&mut key);
 
-	// If one, or the other is set, only generate for the unset one.
-	// This will allow easier testing later, for fixed world random env_seed.
-	// Or for specific AI testing, fixed env_seed but random world. 
-	if world_seed == 0 {
-	    world_seed = OsRng.next_u64();
-	}
-	if env_seed == 0 {
-	    world_seed = OsRng.next_u64();
-	}
+        // If one, or the other is set, only generate for the unset one.
+        // This will allow easier testing later, for fixed world random env_seed.
+        // Or for specific AI testing, fixed env_seed but random world.
+        if world_seed == 0 {
+            world_seed = OsRng.next_u64();
+        }
+        if env_seed == 0 {
+            world_seed = OsRng.next_u64();
+        }
     }
 
     App::new()
-    // PRNG setup
-	.insert_resource(tiered_prng::PrngResource{ world_seed: world_seed, env_seed: env_seed})
-    // Plugins
-	.add_plugin(tiered_prng::PrngPlugin) // Adds Prng based resources for subcomponents
+        // PRNG setup
+        .insert_resource(tiered_prng::PrngResource {
+            world_seed: world_seed,
+            env_seed: env_seed,
+        })
+        // Plugins
+        .add_plugin(tiered_prng::PrngPlugin) // Adds Prng based resources for subcomponents
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy_kira_audio::prelude::AudioPlugin)
         .add_plugins(highlights::StackRankDicePickingPlugins)
