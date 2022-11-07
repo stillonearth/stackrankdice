@@ -441,7 +441,7 @@ struct Args {
     #[arg(short, long, default_value_t = 0)]
     world_seed: u64,
 
-    #[arg(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 0)]
     env_seed: u64,
 }
 
