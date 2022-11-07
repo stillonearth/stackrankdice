@@ -40,5 +40,5 @@ impl FromWorld for PrngResource {
 }
 
 pub fn get_randomness(seed: u64) -> ChaCha20Rng {
-    return ChaCha20Rng::seed_from_u64(seed);
+    ChaCha20Rng::seed_from_u64(seed)
 }
