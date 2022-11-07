@@ -5,6 +5,7 @@ mod hex;
 mod highlights;
 mod tiered_prng;
 
+use clap::Parser;
 use rand::rngs::OsRng;
 use rand::Rng;
 use rand::RngCore;
@@ -19,11 +20,9 @@ use bevy_mod_outline::*;
 use bevy_mod_picking::{PickableBundle, PickingCameraBundle};
 use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
 
-use events::*;
-use game::{generate_board, GameState, Region};
-use geometry::center;
-
-use crate::geometry::flat_hexagon_points;
+use crate::events::*;
+use crate::game::{generate_board, GameState, Region};
+use crate::geometry::{center, flat_hexagon_points};
 use crate::hex::HexCoord;
 use crate::tiered_prng::{get_randomness, PrngMapResource};
 
@@ -436,40 +435,44 @@ fn dice_roll_result_text_ui(
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value_t = 0)]
+    world_seed: u64,
+
+    #[arg(short, long, default_value_t = 1)]
+    env_seed: u64,
+}
+
 fn main() {
     let number_of_players = 2;
 
-    let mut world_seed: u64 = 1;
-    let env_seed: u64 = 1;
+    let mut args = Args::parse();
 
-    // Get cli resource specs, else generate new random world and env seeds.
-    // TODO: implement CliResource handling
-
-    if world_seed == 0 || env_seed == 0 {
+    if args.world_seed == 0 || args.env_seed == 0 {
         let mut key = [0u8; 16];
         OsRng.fill_bytes(&mut key);
 
         // If one, or the other is set, only generate for the unset one.
         // This will allow easier testing later, for fixed world random env_seed.
         // Or for specific AI testing, fixed env_seed but random world.
-        if world_seed == 0 {
-            world_seed = OsRng.next_u64();
+        if args.world_seed == 0 {
+            args.world_seed = OsRng.next_u64();
         }
-        if env_seed == 0 {
-            world_seed = OsRng.next_u64();
+        if args.env_seed == 0 {
+            args.env_seed = OsRng.next_u64();
         }
     }
 
     // Source of randomness for the game
     let prng_resource = tiered_prng::PrngResource {
-        world_seed,
-        env_seed,
+        world_seed: args.world_seed,
+        env_seed: args.env_seed,
     };
 
     // Generate game map
-    let mut randomness = get_randomness(prng_resource.world_seed);
-    println!("World seed: {}", randomness.gen_range(0..666));
-    let map = generate_board(number_of_players, randomness);
+    let map = generate_board(number_of_players, get_randomness(prng_resource.world_seed));
 
     App::new()
         // PRNG setup
