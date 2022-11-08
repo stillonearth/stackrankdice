@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bevy::prelude::Component;
+use bevy::prelude::{Component, Entity};
 use rand::{seq::IteratorRandom, Rng};
 use rand_chacha::ChaCha20Rng;
 
@@ -8,6 +8,7 @@ use crate::hex::HexCoord;
 
 const BOARD_SIZE: isize = 20;
 const NUMBER_OF_PATCHES: usize = 16;
+const HALF_BOARD_SIZE: isize = BOARD_SIZE / 2 - 1;
 
 #[derive(Default, Clone)]
 pub struct Board {
@@ -15,6 +16,7 @@ pub struct Board {
     pub regions: Vec<Region>,
 }
 
+#[derive(Clone)]
 pub struct GameState {
     pub board: Board,
     pub turn_of_player: usize,
@@ -23,6 +25,32 @@ pub struct GameState {
     pub game_log: Vec<GameLogEntry>,
 }
 
+impl GameState {
+    // Enumerates a list of possible moves for a player
+    pub fn possible_moves(self) -> Vec<(Region, Region)> {
+        let regions_owned_by_player: Vec<Region> = self
+            .board
+            .regions
+            .iter()
+            .filter(|region| region.owner == self.turn_of_player)
+            .map(|region| region.clone())
+            .collect();
+
+        let mut possible_moves: Vec<(Region, Region)> = Vec::new();
+
+        for region1 in regions_owned_by_player.iter() {
+            for region2 in self.board.regions.iter() {
+                if region1.is_opponent(&region2) {
+                    possible_moves.push((region1.clone(), region2.clone()));
+                }
+            }
+        }
+
+        return possible_moves;
+    }
+}
+
+#[derive(Clone)]
 pub struct GameLogEntry {
     pub turn_counter: usize,
     pub turn_of_player: usize,
@@ -91,8 +119,7 @@ impl Region {
 }
 
 pub fn generate_board(number_of_players: usize, mut rng: ChaCha20Rng) -> Board {
-    const HALF_BOARD_SIZE: isize = BOARD_SIZE / 2 - 1;
-    // Roughly half of the board occupied by patches (squads)
+    // Roughly half of the board occupied by patches (regions)
     let patch_size: isize =
         (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * number_of_players * 2) as isize;
 
@@ -215,4 +242,22 @@ pub fn generate_board(number_of_players: usize, mut rng: ChaCha20Rng) -> Board {
     }
 
     board
+}
+
+#[derive(Default)]
+pub struct SelectedRegion {
+    pub entity: Option<Entity>,
+    pub region: Option<Region>,
+}
+
+impl SelectedRegion {
+    pub fn select(&mut self, entity: Entity, region: Region) {
+        self.entity = Some(entity);
+        self.region = Some(region);
+    }
+
+    pub fn deselect(&mut self) {
+        self.entity = None;
+        self.region = None;
+    }
 }

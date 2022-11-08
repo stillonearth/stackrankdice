@@ -4,10 +4,7 @@ use bevy_mod_picking::{
     PausedForBlockers, PickingPlugin, PickingPluginsState, PickingSystem, Selection,
 };
 
-use crate::{
-    game::{GameState, Region},
-    SelectedRegion,
-};
+use crate::game::{GameState, Region, SelectedRegion};
 
 // This code is based on bevy_mod_picking. Standard use-case for bevy_mod_picking is limited
 // and doesn't allow to customize colors of objects highlighted based on their metadata.

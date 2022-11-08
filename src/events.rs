@@ -8,12 +8,11 @@ use bevy_dice::{DiceRollResult, DiceRollStartEvent};
 use bevy_kira_audio::prelude::*;
 use bevy_mod_picking::{PickingEvent, SelectionEvent};
 
-use crate::board::StackRankDiceGameBoardElement;
-use crate::game::GameLogEntry;
+use crate::board::{draw_board, StackRankDiceGameBoardElement};
+use crate::game::{GameLogEntry, SelectedRegion};
 use crate::game::{GameState, Region};
 use crate::tiered_prng::PrngMapResource;
 use crate::ui::{DiceRollUI, StackRankDiceUI};
-use crate::{draw_board, SelectedRegion};
 
 /// Event that is fired when two regions on a map are entering a clash
 pub(crate) struct EventPlayerMoveStart {
@@ -103,7 +102,7 @@ pub(crate) struct DiceRollTimer {
     timer: Timer,
 }
 
-pub(crate) fn event_region_clash(
+pub(crate) fn event_player_move_start(
     mut commands: Commands,
     mut region_clash_event_reader: EventReader<EventPlayerMoveStart>,
     mut dice_roll_started_writer: EventWriter<DiceRollStartEvent>,
@@ -190,7 +189,7 @@ pub(crate) fn event_dice_rolls_complete(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn event_region_clash_end(
+pub(crate) fn event_player_move_end(
     mut region_clash_end_event_reader: EventReader<EventPlayerMoveEnd>,
     mut game_state: ResMut<GameState>,
     mut game_elements_query: Query<(Entity, &StackRankDiceGameBoardElement)>,
