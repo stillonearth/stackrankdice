@@ -8,27 +8,46 @@ use bevy_dice::{DiceRollResult, DiceRollStartEvent};
 use bevy_kira_audio::prelude::*;
 use bevy_mod_picking::{PickingEvent, SelectionEvent};
 
+use crate::board::StackRankDiceGameBoardElement;
 use crate::game::GameLogEntry;
 use crate::game::{GameState, Region};
-use crate::{
-    draw_board, DiceRollUI, SelectedRegion, StackRankDiceGameBoardElement, StackRankDiceUI,
-};
 use crate::tiered_prng::PrngMapResource;
+use crate::ui::{DiceRollUI, StackRankDiceUI};
+use crate::{draw_board, SelectedRegion};
 
-pub(crate) struct EventRegionClashStart {
+/// Event that is fired when two regions on a map are entering a clash
+pub(crate) struct EventPlayerMoveStart {
     region_1: Region,
     region_2: Region,
+    player: usize,
 }
 
-pub(crate) struct EventRegionClashEnd {
+/// Event that is fired when a clash between two regions on a map is resolved
+/// and the winner is determined
+pub(crate) struct EventPlayerMoveEnd {
+    player: usize,
     region1: Region,
     region2: Region,
     dice_1_sum: usize,
     dice_2_sum: usize,
 }
 
+/// Event that is fired when a played has won a game
 pub(crate) struct EventGameOver {
+    // An index of a winner
     winner: usize,
+}
+
+/// Event that is fired when a turn of a player is started
+pub(crate) struct EventTurnStart {
+    // An index of a player
+    player: usize,
+}
+
+/// Event that is fired when a turn of a player is started
+pub(crate) struct EventTurnEnd {
+    // An index of a player
+    player: usize,
 }
 
 pub(crate) fn filter_just_selected_event(
@@ -48,7 +67,7 @@ pub(crate) fn event_region_selected(
     picking_events: EventReader<PickingEvent>,
     regions: Query<(Entity, &Region)>,
     game_state: Res<GameState>,
-    mut event_writer: EventWriter<EventRegionClashStart>,
+    mut event_writer: EventWriter<EventPlayerMoveStart>,
 ) {
     let selected_entity = filter_just_selected_event(picking_events);
 
@@ -64,7 +83,11 @@ pub(crate) fn event_region_selected(
             let region_2 = region.clone();
             if region_1.is_opponent(&region_2) {
                 // Attack a neighbour
-                let event = EventRegionClashStart { region_1, region_2 };
+                let event = EventPlayerMoveStart {
+                    player: game_state.turn_of_player,
+                    region_1,
+                    region_2,
+                };
                 event_writer.send(event);
             }
         }
@@ -82,7 +105,7 @@ pub(crate) struct DiceRollTimer {
 
 pub(crate) fn event_region_clash(
     mut commands: Commands,
-    mut region_clash_event_reader: EventReader<EventRegionClashStart>,
+    mut region_clash_event_reader: EventReader<EventPlayerMoveStart>,
     mut dice_roll_started_writer: EventWriter<DiceRollStartEvent>,
     mut dice_roll_view_query: Query<(Entity, &mut Visibility, &DiceRollUI)>,
     mut game_state: ResMut<GameState>,
@@ -141,7 +164,7 @@ pub(crate) fn event_dice_rolls_complete(
     mut dice_roll_timer_query: Query<(Entity, &mut DiceRollTimer)>,
     mut dice_roll_ui_query: Query<(Entity, &mut Visibility, &mut DiceRollUI)>,
     time: Res<Time>,
-    mut region_clash_end_event_writer: EventWriter<EventRegionClashEnd>,
+    mut region_clash_end_event_writer: EventWriter<EventPlayerMoveEnd>,
     mut game_state: ResMut<GameState>,
 ) {
     for (entity, mut fuse_timer) in dice_roll_timer_query.iter_mut() {
@@ -155,7 +178,8 @@ pub(crate) fn event_dice_rolls_complete(
 
             let last_log_entry = game_state.game_log.last_mut().unwrap();
 
-            region_clash_end_event_writer.send(EventRegionClashEnd {
+            region_clash_end_event_writer.send(EventPlayerMoveEnd {
+                player: last_log_entry.region_1.owner,
                 region1: last_log_entry.region_1.clone(),
                 region2: last_log_entry.region_2.clone(),
                 dice_1_sum: last_log_entry.dice_1_sum,
@@ -167,7 +191,7 @@ pub(crate) fn event_dice_rolls_complete(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn event_region_clash_end(
-    mut region_clash_end_event_reader: EventReader<EventRegionClashEnd>,
+    mut region_clash_end_event_reader: EventReader<EventPlayerMoveEnd>,
     mut game_state: ResMut<GameState>,
     mut game_elements_query: Query<(Entity, &StackRankDiceGameBoardElement)>,
     asset_server: Res<AssetServer>,
@@ -178,6 +202,8 @@ pub(crate) fn event_region_clash_end(
     mut selected_region: ResMut<SelectedRegion>,
     audio: Res<bevy_kira_audio::prelude::Audio>,
     mut event_game_over_writer: EventWriter<EventGameOver>,
+    mut event_turn_end_writer: EventWriter<EventTurnEnd>,
+    mut event_turn_start_writer: EventWriter<EventTurnStart>,
 ) {
     let mut rng = rand::thread_rng();
     let mut redraw_board = false;
@@ -248,10 +274,19 @@ pub(crate) fn event_region_clash_end(
         .count();
 
     if number_of_unblocked_regions == 0 {
+        event_turn_end_writer.send(EventTurnEnd {
+            player: game_state.turn_of_player,
+        });
+
         game_state.turn_of_player += 1;
         if game_state.turn_of_player >= game_state.number_of_players {
             game_state.turn_of_player = 0;
         }
+
+        event_turn_start_writer.send(EventTurnStart {
+            player: game_state.turn_of_player,
+        });
+
         game_state.turn_counter += 1;
     }
 
@@ -271,7 +306,14 @@ pub(crate) fn event_region_clash_end(
 
     if redraw_board {
         selected_region.deselect();
-        draw_board(asset_server, commands, meshes, map_prng, materials, game_state);
+        draw_board(
+            asset_server,
+            commands,
+            meshes,
+            map_prng,
+            materials,
+            game_state,
+        );
     }
 }
 
@@ -315,6 +357,6 @@ pub(crate) fn event_game_over(
             )
             .insert(StackRankDiceUI);
 
-        // audio.play(asset_server.load("sounds/game_over.wav"));
+        // _audio.play(asset_server.load("sounds/game_over.wav"));
     }
 }
