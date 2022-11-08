@@ -12,5 +12,5 @@ fn fixed_world_undef_env_seed() {
     let possible_moves = game_state.possible_moves();
 
     println!("Number of possible moves: {:?}", possible_moves.len());
-    assert!(possible_moves.len() > 0);
+    assert!(!possible_moves.is_empty());
 }

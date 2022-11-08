@@ -32,21 +32,20 @@ impl GameState {
             .board
             .regions
             .iter()
-            .filter(|region| region.owner == self.turn_of_player)
-            .map(|region| region.clone())
+            .filter(|region| region.owner == self.turn_of_player).cloned()
             .collect();
 
         let mut possible_moves: Vec<(Region, Region)> = Vec::new();
 
         for region1 in regions_owned_by_player.iter() {
             for region2 in self.board.regions.iter() {
-                if region1.is_opponent(&region2) {
+                if region1.is_opponent(region2) {
                     possible_moves.push((region1.clone(), region2.clone()));
                 }
             }
         }
 
-        return possible_moves;
+        possible_moves
     }
 }
 

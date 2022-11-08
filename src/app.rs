@@ -21,8 +21,8 @@ pub fn build_app(
 
     // Source of randomness for the game
     let prng_resource = tiered_prng::PrngResource {
-        world_seed: world_seed,
-        env_seed: env_seed,
+        world_seed,
+        env_seed,
     };
 
     if !testing {
