@@ -10,10 +10,10 @@ use bevy_mod_picking::{PickingEvent, SelectionEvent};
 
 use crate::game::GameLogEntry;
 use crate::game::{GameState, Region};
+use crate::tiered_prng::PrngMapResource;
 use crate::{
     draw_board, DiceRollUI, SelectedRegion, StackRankDiceGameBoardElement, StackRankDiceUI,
 };
-use crate::tiered_prng::PrngMapResource;
 
 pub(crate) struct EventRegionClashStart {
     region_1: Region,
@@ -271,7 +271,14 @@ pub(crate) fn event_region_clash_end(
 
     if redraw_board {
         selected_region.deselect();
-        draw_board(asset_server, commands, meshes, map_prng, materials, game_state);
+        draw_board(
+            asset_server,
+            commands,
+            meshes,
+            map_prng,
+            materials,
+            game_state,
+        );
     }
 }
 
