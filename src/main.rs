@@ -461,8 +461,8 @@ fn main() {
     App::new()
         // PRNG setup
         .insert_resource(tiered_prng::PrngResource {
-            world_seed: world_seed,
-            env_seed: env_seed,
+            world_seed,
+            env_seed,
         })
         // Plugins
         .add_plugin(tiered_prng::PrngPlugin) // Adds Prng based resources for subcomponents
