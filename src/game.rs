@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use bevy::prelude::Component;
-use rand::seq::IteratorRandom;
-use rand::Rng;
+use rand::{seq::IteratorRandom, Rng};
+use rand_chacha::ChaCha20Rng;
 
 use crate::hex::HexCoord;
 
@@ -90,14 +90,13 @@ impl Region {
     }
 }
 
-pub fn generate_board(number_of_players: usize) -> Board {
+pub fn generate_board(number_of_players: usize, mut rng: ChaCha20Rng) -> Board {
     const HALF_BOARD_SIZE: isize = BOARD_SIZE / 2 - 1;
     // Roughly half of the board occupied by patches (squads)
     let patch_size: isize =
         (BOARD_SIZE * BOARD_SIZE) / (NUMBER_OF_PATCHES * number_of_players * 2) as isize;
 
     let mut board = Board::default();
-    let mut rng = rand::thread_rng();
 
     for patch in 0..NUMBER_OF_PATCHES {
         for player in 0..number_of_players {

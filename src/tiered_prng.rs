@@ -2,11 +2,9 @@ use bevy::app::App;
 use bevy::app::Plugin;
 use bevy::ecs::world::FromWorld;
 use bevy::ecs::world::World;
-
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
-#[derive(Debug)]
 pub struct PrngResource {
     pub world_seed: u64,
     pub env_seed: u64,
@@ -14,7 +12,6 @@ pub struct PrngResource {
 
 pub struct PrngPlugin;
 
-#[derive(Debug)]
 pub struct PrngMapResource {
     pub rng: ChaCha20Rng,
 }
@@ -23,8 +20,9 @@ impl Plugin for PrngPlugin {
     fn build(&self, app: &mut App) {
         let seeds = app.world.get_resource::<PrngResource>().unwrap();
 
-        let map_rng = ChaCha20Rng::seed_from_u64(seeds.world_seed);
-        app.insert_resource(PrngMapResource { rng: map_rng });
+        app.insert_resource(PrngMapResource {
+            rng: get_randomness(seeds.world_seed),
+        });
     }
 }
 
@@ -39,4 +37,8 @@ impl FromWorld for PrngResource {
             env_seed: 0,
         }
     }
+}
+
+pub fn get_randomness(seed: u64) -> ChaCha20Rng {
+    ChaCha20Rng::seed_from_u64(seed)
 }
