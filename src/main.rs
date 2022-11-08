@@ -3,8 +3,12 @@ mod game;
 mod geometry;
 mod hex;
 mod highlights;
+mod tiered_prng;
 
+use clap::Parser;
+use rand::rngs::OsRng;
 use rand::Rng;
+use rand::RngCore;
 
 use bevy::{
     prelude::*,
@@ -16,12 +20,11 @@ use bevy_mod_outline::*;
 use bevy_mod_picking::{PickableBundle, PickingCameraBundle};
 use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
 
-use events::*;
-use game::{generate_board, GameState, Region};
-use geometry::center;
-
-use crate::geometry::flat_hexagon_points;
+use crate::events::*;
+use crate::game::{generate_board, GameState, Region};
+use crate::geometry::{center, flat_hexagon_points};
 use crate::hex::HexCoord;
+use crate::tiered_prng::{get_randomness, PrngMapResource};
 
 /// Generate a single hex mesh
 fn generate_hex_region_mesh(region: &Region) -> Mesh {
@@ -257,10 +260,11 @@ fn draw_board(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut map_prng: ResMut<PrngMapResource>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     game_state: ResMut<GameState>,
 ) {
-    let mut rng = rand::thread_rng();
+    //    let mut rng = rand::thread_rng();
     let board = game_state.board.clone();
 
     // Draw board
@@ -298,7 +302,9 @@ fn draw_board(
         let mut mesh = generate_hex_region_mesh(region);
         mesh.generate_outline_normals().unwrap();
         let mesh = meshes.add(mesh);
-        let height: f32 = 1.0 + rng.gen_range(0.0..=0.0001);
+        // Theese micro-height differences are to make otline rendering visible.
+        // Otherwise tiles with the same height will be rendered as one.
+        let height: f32 = 1.0 + map_prng.rng.gen_range(0.0..=0.0001);
         let mut bundle_command = commands.spawn_bundle(PbrBundle {
             mesh: mesh.clone(),
             material: material.clone(),
@@ -429,11 +435,50 @@ fn dice_roll_result_text_ui(
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value_t = 0)]
+    world_seed: u64,
+
+    #[arg(short, long, default_value_t = 0)]
+    env_seed: u64,
+}
+
 fn main() {
     let number_of_players = 2;
 
+    let mut args = Args::parse();
+
+    if args.world_seed == 0 || args.env_seed == 0 {
+        let mut key = [0u8; 16];
+        OsRng.fill_bytes(&mut key);
+
+        // If one, or the other is set, only generate for the unset one.
+        // This will allow easier testing later, for fixed world random env_seed.
+        // Or for specific AI testing, fixed env_seed but random world.
+        if args.world_seed == 0 {
+            args.world_seed = OsRng.next_u64();
+        }
+        if args.env_seed == 0 {
+            args.env_seed = OsRng.next_u64();
+        }
+    }
+
+    // Source of randomness for the game
+    let prng_resource = tiered_prng::PrngResource {
+        world_seed: args.world_seed,
+        env_seed: args.env_seed,
+    };
+
+    // Generate game map
+    let map = generate_board(number_of_players, get_randomness(prng_resource.world_seed));
+
     App::new()
+        // PRNG setup
+        .insert_resource(prng_resource)
         // Plugins
+        .add_plugin(tiered_prng::PrngPlugin) // Adds Prng based resources for subcomponents
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy_kira_audio::prelude::AudioPlugin)
         .add_plugins(highlights::StackRankDicePickingPlugins)
@@ -447,7 +492,7 @@ fn main() {
             ..default()
         })
         .insert_resource(GameState {
-            board: generate_board(number_of_players),
+            board: map,
             number_of_players,
             turn_of_player: 0,
             turn_counter: 0,
