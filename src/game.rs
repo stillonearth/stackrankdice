@@ -27,12 +27,14 @@ pub struct GameState {
 
 impl GameState {
     // Enumerates a list of possible moves for a player
+    #[allow(dead_code)]
     pub fn possible_moves(self) -> Vec<(Region, Region)> {
         let regions_owned_by_player: Vec<Region> = self
             .board
             .regions
             .iter()
-            .filter(|region| region.owner == self.turn_of_player).cloned()
+            .filter(|region| region.owner == self.turn_of_player)
+            .cloned()
             .collect();
 
         let mut possible_moves: Vec<(Region, Region)> = Vec::new();
@@ -55,8 +57,8 @@ pub struct GameLogEntry {
     pub turn_of_player: usize,
     pub region_1: Region,
     pub region_2: Region,
-    pub dice_1_sum: usize,
-    pub dice_2_sum: usize,
+    pub region_1_dice_result: Vec<usize>,
+    pub region_2_dice_result: Vec<usize>,
 }
 
 #[derive(Default, Component, Clone)]

@@ -43,10 +43,13 @@ pub(crate) fn dice_roll_result_text_update(
         }
 
         let log_entry = last_log_entry.unwrap();
-        if i == 0 && log_entry.dice_1_sum != 0 {
-            text.sections[0].value = format!("{}", log_entry.dice_1_sum);
-        } else if log_entry.dice_2_sum != 0 {
-            text.sections[0].value = format!("{}", log_entry.dice_2_sum);
+        let result_1: usize = log_entry.region_1_dice_result.iter().sum();
+        let result_2: usize = log_entry.region_2_dice_result.iter().sum();
+
+        if i == 0 && result_1 != 0 {
+            text.sections[0].value = format!("{}", result_1);
+        } else if result_2 != 0 {
+            text.sections[0].value = format!("{}", result_2);
         }
     }
 }

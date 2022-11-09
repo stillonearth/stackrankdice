@@ -15,20 +15,24 @@ use crate::tiered_prng::PrngMapResource;
 use crate::ui::{DiceRollUI, StackRankDiceUI};
 
 /// Event that is fired when two regions on a map are entering a clash
+#[allow(dead_code)]
 pub(crate) struct EventPlayerMoveStart {
     region_1: Region,
     region_2: Region,
-    player: usize,
+    player_1: usize,
+    player_2: usize,
 }
 
 /// Event that is fired when a clash between two regions on a map is resolved
 /// and the winner is determined
+#[allow(dead_code)]
 pub(crate) struct EventPlayerMoveEnd {
-    player: usize,
-    region1: Region,
-    region2: Region,
-    dice_1_sum: usize,
-    dice_2_sum: usize,
+    player_1: usize,
+    player_2: usize,
+    region_1: Region,
+    region_2: Region,
+    region_1_dice_result: Vec<usize>,
+    region_2_dice_result: Vec<usize>,
 }
 
 /// Event that is fired when a played has won a game
@@ -38,12 +42,14 @@ pub(crate) struct EventGameOver {
 }
 
 /// Event that is fired when a turn of a player is started
+#[allow(dead_code)]
 pub(crate) struct EventTurnStart {
     // An index of a player
     player: usize,
 }
 
 /// Event that is fired when a turn of a player is started
+#[allow(dead_code)]
 pub(crate) struct EventTurnEnd {
     // An index of a player
     player: usize,
@@ -83,7 +89,8 @@ pub(crate) fn event_region_selected(
             if region_1.is_opponent(&region_2) {
                 // Attack a neighbour
                 let event = EventPlayerMoveStart {
-                    player: game_state.turn_of_player,
+                    player_1: region_1.owner,
+                    player_2: region_2.owner,
                     region_1,
                     region_2,
                 };
@@ -129,8 +136,8 @@ pub(crate) fn event_player_move_start(
             turn_of_player,
             region_1: event.region_1.clone(),
             region_2: event.region_2.clone(),
-            dice_1_sum: 0,
-            dice_2_sum: 0,
+            region_1_dice_result: Vec::new(),
+            region_2_dice_result: Vec::new(),
             turn_counter,
         });
 
@@ -153,8 +160,8 @@ pub(crate) fn event_dice_roll_result(
 
         audio.play(asset_server.load("sounds/throw.wav"));
 
-        last_log_entry.dice_1_sum = event.values[0].iter().sum();
-        last_log_entry.dice_2_sum = event.values[1].iter().sum();
+        last_log_entry.region_1_dice_result = event.values[0].clone();
+        last_log_entry.region_2_dice_result = event.values[1].clone();
     }
 }
 
@@ -178,11 +185,12 @@ pub(crate) fn event_dice_rolls_complete(
             let last_log_entry = game_state.game_log.last_mut().unwrap();
 
             region_clash_end_event_writer.send(EventPlayerMoveEnd {
-                player: last_log_entry.region_1.owner,
-                region1: last_log_entry.region_1.clone(),
-                region2: last_log_entry.region_2.clone(),
-                dice_1_sum: last_log_entry.dice_1_sum,
-                dice_2_sum: last_log_entry.dice_2_sum,
+                player_1: last_log_entry.region_1.owner,
+                player_2: last_log_entry.region_2.owner,
+                region_1: last_log_entry.region_1.clone(),
+                region_2: last_log_entry.region_2.clone(),
+                region_1_dice_result: last_log_entry.region_1_dice_result.clone(),
+                region_2_dice_result: last_log_entry.region_2_dice_result.clone(),
             })
         }
     }
@@ -208,25 +216,28 @@ pub(crate) fn event_player_move_end(
     let mut redraw_board = false;
 
     for e in region_clash_end_event_reader.iter() {
-        if e.dice_1_sum > e.dice_2_sum {
+        let result_1: usize = e.region_1_dice_result.iter().sum();
+        let result_2: usize = e.region_2_dice_result.iter().sum();
+
+        if result_1 > result_2 {
             // win a region
-            game_state.board.regions[e.region2.id].owner = e.region1.owner;
-            if e.region1.num_dice > 1 {
-                game_state.board.regions[e.region2.id].num_dice =
-                    rng.gen_range(1..e.region1.num_dice);
-                game_state.board.regions[e.region1.id].num_dice -=
-                    game_state.board.regions[e.region2.id].num_dice - 1;
+            game_state.board.regions[e.region_2.id].owner = e.region_1.owner;
+            if e.region_1.num_dice > 1 {
+                game_state.board.regions[e.region_2.id].num_dice =
+                    rng.gen_range(1..e.region_1.num_dice);
+                game_state.board.regions[e.region_1.id].num_dice -=
+                    game_state.board.regions[e.region_2.id].num_dice - 1;
             }
 
             audio.play(asset_server.load("sounds/win.wav"));
         } else {
             // lose a region
-            game_state.board.regions[e.region1.id].owner = e.region2.owner;
-            if e.region2.num_dice > 1 {
-                game_state.board.regions[e.region1.id].num_dice =
-                    rng.gen_range(1..e.region2.num_dice);
-                game_state.board.regions[e.region2.id].num_dice -=
-                    game_state.board.regions[e.region1.id].num_dice - 1;
+            game_state.board.regions[e.region_1.id].owner = e.region_2.owner;
+            if e.region_2.num_dice > 1 {
+                game_state.board.regions[e.region_1.id].num_dice =
+                    rng.gen_range(1..e.region_2.num_dice);
+                game_state.board.regions[e.region_2.id].num_dice -=
+                    game_state.board.regions[e.region_1.id].num_dice - 1;
             }
 
             audio.play(asset_server.load("sounds/loss.wav"));
